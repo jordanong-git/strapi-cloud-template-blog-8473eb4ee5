@@ -113,12 +113,12 @@ const getS3Client = () => {
   });
 };
 
-const buildSubTopicRelationFilter = (subTopics, ownerId) => ({
+const buildTopicRelationFilter = (topics, ownerId) => ({
   $and: [
     {
-      $or: subTopics.flatMap((subTopic) => [
-        { slug: { $eqi: subTopic } },
-        { name: { $eqi: subTopic } },
+      $or: topics.flatMap((topic) => [
+        { slug: { $eqi: topic } },
+        { name: { $eqi: topic } },
       ]),
     },
     {
@@ -167,14 +167,11 @@ const buildDifficultyRelationFilter = (difficultyValue, ownerId) => {
 
 const buildQuestionFilters = (query) => {
   const ownerId = parseRequiredString(query.ownerId, 'ownerId');
-  const subTopics = parseMultiStringValues(
-    query.subTopic ?? query.sub_topic ?? query.topic,
-    'sub_topic',
-  );
+  const topics = parseMultiStringValues(query.topic ?? query.subTopic ?? query.sub_topic, 'topic');
   const level = parseRequiredString(query.level, 'level');
   const difficulty = parseRequiredString(query.difficulty, 'difficulty');
-  const responseType = parseOptionalString(
-    query.responseType ?? query.response_type ?? query.questionType,
+  const questionType = parseOptionalString(
+    query.questionType ?? query.question_type ?? query.responseType ?? query.response_type,
   );
 
   const where = {
@@ -182,31 +179,31 @@ const buildQuestionFilters = (query) => {
     level,
     asset_type: 'question',
     is_active: true,
-    sub_topics: buildSubTopicRelationFilter(subTopics, ownerId),
+    topics: buildTopicRelationFilter(topics, ownerId),
     difficulty: buildDifficultyRelationFilter(difficulty, ownerId),
     publishedAt: {
       $notNull: true,
     },
   };
 
-  if (responseType) {
-    where.response_type = responseType;
+  if (questionType) {
+    where.question_type = questionType;
   }
 
   return {
     where,
     ownerId,
-    subTopics,
+    topics,
     level,
     difficulty,
-    responseType,
+    questionType,
   };
 };
 
-const mapSubTopics = (subTopics) =>
-  Array.isArray(subTopics)
-    ? subTopics
-        .map((subTopic) => subTopic?.name || subTopic?.slug || null)
+const mapTopics = (topics) =>
+  Array.isArray(topics)
+    ? topics
+        .map((topic) => topic?.name || topic?.slug || null)
         .filter(Boolean)
     : [];
 
@@ -227,7 +224,7 @@ const mapDifficulty = (difficulty) => {
 };
 
 const mapQuestion = (question) => {
-  const subTopics = mapSubTopics(question.sub_topics);
+  const topics = mapTopics(question.topics);
   const mappedDifficulty = mapDifficulty(question.difficulty);
 
   return {
@@ -235,15 +232,15 @@ const mapQuestion = (question) => {
     documentId: question.documentId,
     title: question.title,
     prompt: question.prompt,
-    response_type: question.response_type,
+    question_type: question.question_type,
     choices: question.choices ?? null,
     accepted_answers: question.accepted_answers ?? null,
     sample_answer: question.sample_answer ?? null,
     marking_rubric: question.marking_rubric ?? null,
     max_score: Number.isInteger(question.max_score) ? question.max_score : 1,
     explanation: question.explanation ?? null,
-    sub_topic: subTopics[0] ?? null,
-    sub_topics: subTopics,
+    topic: topics[0] ?? null,
+    topics,
     level: question.level,
     difficulty: mappedDifficulty.difficulty,
     difficulty_slug: mappedDifficulty.difficulty_slug,
@@ -276,7 +273,7 @@ const createAuditLog = async (strapi, action, ctx, payload) => {
       outlet_id: requester.outlet_id,
       outlet_name: requester.outlet_name,
       owner_id: payload.ownerId ?? null,
-      sub_topic: Array.isArray(payload.subTopics) ? payload.subTopics.join(', ') : null,
+      topic: Array.isArray(payload.topics) ? payload.topics.join(', ') : null,
       level: payload.level ?? null,
       difficulty: payload.difficulty ?? null,
       requested_count: payload.requestedCount ?? null,
@@ -295,7 +292,7 @@ const queryQuestions = async (strapi, where) =>
     where,
     orderBy: { updatedAt: 'desc' },
     populate: {
-      sub_topics: true,
+      topics: true,
       difficulty: true,
     },
   });
@@ -310,7 +307,7 @@ const getPublishedAsset = async (strapi, assetId) =>
       },
     },
     populate: {
-      sub_topics: true,
+      topics: true,
       difficulty: true,
     },
   });
@@ -326,7 +323,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       await createAuditLog(strapi, 'generate_questions', ctx, {
         ownerId: filters.ownerId,
-        subTopics: filters.subTopics,
+        topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
         requestedCount: count,
@@ -345,7 +342,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     } catch (error) {
       await createAuditLog(strapi, 'generate_questions', ctx, {
         ownerId: filters.ownerId,
-        subTopics: filters.subTopics,
+        topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
         requestedCount: count,
@@ -369,7 +366,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
         ownerId: filters.ownerId,
-        subTopics: filters.subTopics,
+        topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
         requestedCount: count,
@@ -382,10 +379,10 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
         data: {
           format: 'json',
           worksheet: {
-            title: `${filters.subTopics.join(', ')} Worksheet`,
+            title: `${filters.topics.join(', ')} Worksheet`,
             owner_id: filters.ownerId,
-            sub_topic: filters.subTopics[0] ?? null,
-            sub_topics: filters.subTopics,
+            topic: filters.topics[0] ?? null,
+            topics: filters.topics,
             level: filters.level,
             difficulty: filters.difficulty,
             generated_at: new Date().toISOString(),
@@ -400,7 +397,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     } catch (error) {
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
         ownerId: filters.ownerId,
-        subTopics: filters.subTopics,
+        topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
         requestedCount: count,
@@ -472,7 +469,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       await createAuditLog(strapi, 'asset_url', ctx, {
         ownerId,
-        subTopics: mapSubTopics(asset.sub_topics),
+        topics: mapTopics(asset.topics),
         level: asset.level,
         difficulty: mapDifficulty(asset.difficulty).difficulty,
         assetId,

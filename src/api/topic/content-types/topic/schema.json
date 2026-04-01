@@ -4,8 +4,8 @@
   "info": {
     "singularName": "topic",
     "pluralName": "topics",
-    "displayName": "Sub Topic",
-    "description": "Managed sub-topic taxonomy for IP vault questions and assets."
+    "displayName": "Topic",
+    "description": "Managed topic taxonomy for IP vault questions and assets."
   },
   "options": {
     "draftAndPublish": true
@@ -41,13 +41,13 @@
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::ip-question.ip-question",
-      "mappedBy": "sub_topics"
+      "mappedBy": "topics"
     },
     "assets": {
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::ip-asset.ip-asset",
-      "mappedBy": "sub_topics"
+      "mappedBy": "topics"
     }
   },
   "config": {

@@ -68,7 +68,7 @@
       "type": "boolean",
       "default": true
     },
-    "sub_topics": {
+    "topics": {
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::topic.topic",

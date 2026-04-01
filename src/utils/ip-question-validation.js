@@ -7,7 +7,7 @@ const { ValidationError } = errors;
 const QUESTION_UID = 'api::ip-question.ip-question';
 const VALID_QUESTION_TYPES = new Set(['mcq', 'saq', 'laq']);
 
-const normalizeResponseType = (value) => String(value || '').trim().toLowerCase();
+const normalizeQuestionType = (value) => String(value || '').trim().toLowerCase();
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
 
@@ -56,25 +56,25 @@ const validateQuestionPayload = (data) => {
     return;
   }
 
-  const responseType = normalizeResponseType(data.response_type);
-  if (!VALID_QUESTION_TYPES.has(responseType)) {
-    throw new ValidationError('response_type must be one of: mcq, saq, laq.');
+  const questionType = normalizeQuestionType(data.question_type);
+  if (!VALID_QUESTION_TYPES.has(questionType)) {
+    throw new ValidationError('question_type must be one of: mcq, saq, laq.');
   }
 
   if (!Number.isInteger(data.max_score) || data.max_score < 1) {
     throw new ValidationError('max_score must be an integer greater than or equal to 1.');
   }
 
-  if (responseType === 'mcq') {
+  if (questionType === 'mcq') {
     validateMcqChoices(data.choices);
     return;
   }
 
   if (Array.isArray(data.choices) && data.choices.length > 0) {
-    throw new ValidationError(`${responseType.toUpperCase()} questions must not include choices.`);
+    throw new ValidationError(`${questionType.toUpperCase()} questions must not include choices.`);
   }
 
-  if (responseType === 'saq') {
+  if (questionType === 'saq') {
     validateAcceptedAnswers(data.accepted_answers);
     return;
   }
@@ -110,7 +110,7 @@ const registerQuestionValidationLifecycles = (strapi) => {
       const existingRecord = await strapi.db.query(QUESTION_UID).findOne({
         where,
         select: [
-          'response_type',
+          'question_type',
           'choices',
           'accepted_answers',
           'sample_answer',

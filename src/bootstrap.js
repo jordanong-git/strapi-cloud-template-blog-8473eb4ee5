@@ -81,6 +81,159 @@ async function removeSensitiveApiPermissions() {
   );
 }
 
+async function updateContentManagerConfiguration(key, mutator) {
+  const row = await strapi.db.connection('strapi_core_store_settings').where({ key }).first();
+
+  if (!row?.value) {
+    return;
+  }
+
+  const currentValue = JSON.parse(row.value);
+  const nextValue = mutator(currentValue);
+
+  if (JSON.stringify(nextValue) === JSON.stringify(currentValue)) {
+    return;
+  }
+
+  await strapi.db
+    .connection('strapi_core_store_settings')
+    .where({ key })
+    .update({ value: JSON.stringify(nextValue) });
+}
+
+function mergeQuestionFieldMetadata(metadata, fieldName, editOverrides, listOverrides = {}) {
+  const currentMetadata = metadata[fieldName] || {};
+
+  metadata[fieldName] = {
+    ...currentMetadata,
+    edit: {
+      ...(currentMetadata.edit || {}),
+      ...editOverrides,
+    },
+    list: {
+      ...(currentMetadata.list || {}),
+      ...listOverrides,
+    },
+  };
+}
+
+function createEditRow(...fieldNames) {
+  const size = fieldNames.length === 2 ? 6 : 12;
+
+  return fieldNames.map((name) => ({ name, size }));
+}
+
+async function updateIpQuestionContentManagerConfiguration() {
+  const key = 'plugin_content_manager_configuration_content_types::api::ip-question.ip-question';
+
+  await updateContentManagerConfiguration(key, (configuration) => {
+    const nextConfiguration = {
+      ...configuration,
+      settings: {
+        ...(configuration.settings || {}),
+        mainField: 'title',
+        defaultSortBy: 'title',
+        defaultSortOrder: 'ASC',
+      },
+      layouts: {
+        ...(configuration.layouts || {}),
+        edit: [
+          createEditRow('question_type'),
+          createEditRow('title'),
+          createEditRow('prompt'),
+          createEditRow('topics', 'level'),
+          createEditRow('difficulty', 'max_score'),
+          createEditRow('choices'),
+          createEditRow('accepted_answers'),
+          createEditRow('sample_answer'),
+          createEditRow('marking_rubric'),
+          createEditRow('explanation'),
+          createEditRow('contains_latex'),
+          createEditRow('is_active'),
+        ],
+      },
+      metadatas: {
+        ...(configuration.metadatas || {}),
+      },
+    };
+
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'question_type', {
+      label: 'Question Type',
+      description: 'Choose the answer format first: MCQ, SAQ, or LAQ.',
+      placeholder: 'Select MCQ, SAQ, or LAQ',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'title', {
+      label: 'Internal Title',
+      description: 'Internal label for HQ only. This is not shown to learners.',
+      placeholder: 'Example: P3 Fractions Addition Q1',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'prompt', {
+      label: 'Question Text',
+      description: 'The actual question shown to the learner. Raw LaTeX is allowed here.',
+      placeholder: 'Example: What is \\\\( \\\\frac{1}{2} + \\\\frac{1}{4} \\\\)?',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'topics', {
+      label: 'Topics',
+      description: 'Select one or more curriculum topics for this question.',
+      placeholder: 'Select one or more topics',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
+      label: 'Academic Level',
+      description: 'Target academic level such as P1, P2, P3, S1, or S2.',
+      placeholder: 'Select the target level',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'difficulty', {
+      label: 'Difficulty',
+      description: 'Select the managed difficulty level for this question.',
+      placeholder: 'Select a difficulty level',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'max_score', {
+      label: 'Max Score',
+      description: 'Maximum marks available for this question.',
+      placeholder: 'Example: 1',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'choices', {
+      label: 'Choices (MCQ only)',
+      description:
+        'Fill this only for MCQ. Enter a JSON array of choices and mark the correct option(s). Leave empty for SAQ and LAQ. Example: [{"choice_text":"3/4","is_correct":true,"order_index":0},{"choice_text":"2/3","is_correct":false,"order_index":1},{"choice_text":"1/4","is_correct":false,"order_index":2}]',
+      placeholder:
+        '[{\"choice_text\":\"3/4\",\"is_correct\":true,\"order_index\":0},{\"choice_text\":\"2/3\",\"is_correct\":false,\"order_index\":1},{\"choice_text\":\"1/4\",\"is_correct\":false,\"order_index\":2}]',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'accepted_answers', {
+      label: 'Accepted Answers (SAQ only)',
+      description:
+        'Fill this only for SAQ. Enter acceptable short answers as a JSON array. Leave empty for MCQ and LAQ. Example: ["3/4", "\\\\frac{3}{4}", "0.75"]',
+      placeholder: '[\"3/4\", \"\\\\frac{3}{4}\", \"0.75\"]',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'sample_answer', {
+      label: 'Sample Answer (LAQ mainly)',
+      description:
+        'Mainly for LAQ. Provide a model answer or sample working for teachers and grading reference. Example: Convert both fractions to quarters, add the numerators, then simplify the final answer to 3/4.',
+      placeholder:
+        'Example: Convert both fractions to quarters, add the numerators, then simplify the final answer to 3/4.',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'marking_rubric', {
+      label: 'Marking Rubric (LAQ mainly)',
+      description:
+        'Mainly for LAQ. Describe how marks are awarded, such as method marks, working marks, and final answer marks. Example: 1 mark for correct method, 2 marks for correct working, 1 mark for correct final answer.',
+      placeholder:
+        'Example: 1 mark for correct method, 2 marks for correct working, 1 mark for correct final answer.',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'explanation', {
+      label: 'Explanation',
+      description: 'Optional teaching explanation or solution notes.',
+      placeholder: 'Explain the method or common mistake here.',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'contains_latex', {
+      label: 'Contains LaTeX',
+      description: 'Turn this on if the question text or answers include raw LaTeX markup.',
+      placeholder: '',
+    });
+
+    return nextConfiguration;
+  });
+}
+
 async function isFirstRun() {
   const pluginStore = strapi.store({
     environment: strapi.config.environment,
@@ -331,4 +484,5 @@ module.exports = async () => {
   registerQuestionValidationLifecycles(strapi);
   await seedExampleApp();
   await removeSensitiveApiPermissions();
+  await updateIpQuestionContentManagerConfiguration();
 };

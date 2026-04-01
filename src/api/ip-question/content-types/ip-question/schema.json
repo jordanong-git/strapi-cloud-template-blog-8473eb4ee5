@@ -12,7 +12,7 @@
   },
   "pluginOptions": {},
   "attributes": {
-    "response_type": {
+    "question_type": {
       "type": "enumeration",
       "enum": ["mcq", "saq", "laq"],
       "default": "mcq",
@@ -26,7 +26,7 @@
       "type": "text",
       "required": true
     },
-    "sub_topics": {
+    "topics": {
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::topic.topic",
@@ -102,10 +102,10 @@
   },
   "config": {
     "attributes": {
-      "asset_type": {
+      "owner_id": {
         "hidden": true
       },
-      "owner_id": {
+      "asset_type": {
         "hidden": true
       }
     }

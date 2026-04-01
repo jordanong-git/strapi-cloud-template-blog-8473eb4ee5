@@ -35,7 +35,7 @@
     "owner_id": {
       "type": "string"
     },
-    "sub_topic": {
+    "topic": {
       "type": "string"
     },
     "level": {

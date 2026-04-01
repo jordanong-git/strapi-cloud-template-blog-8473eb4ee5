@@ -687,9 +687,9 @@ export interface ApiIpAssetIpAsset extends Struct.CollectionTypeSchema {
     object_key: Schema.Attribute.String;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
-    sub_topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'> &
-      Schema.Attribute.Required;
     title: Schema.Attribute.String & Schema.Attribute.Required;
+    topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'> &
+      Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -736,10 +736,10 @@ export interface ApiIpAuditLogIpAuditLog extends Struct.CollectionTypeSchema {
     requesting_user_email: Schema.Attribute.Email;
     requesting_user_id: Schema.Attribute.String;
     returned_count: Schema.Attribute.Integer;
-    sub_topic: Schema.Attribute.String;
     success: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<true>;
+    topic: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -799,13 +799,13 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     prompt: Schema.Attribute.Text & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
-    response_type: Schema.Attribute.Enumeration<['mcq', 'saq', 'laq']> &
+    question_type: Schema.Attribute.Enumeration<['mcq', 'saq', 'laq']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'mcq'>;
     sample_answer: Schema.Attribute.Text;
-    sub_topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'> &
-      Schema.Attribute.Required;
     title: Schema.Attribute.String & Schema.Attribute.Required;
+    topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'> &
+      Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -815,8 +815,8 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
 export interface ApiTopicTopic extends Struct.CollectionTypeSchema {
   collectionName: 'topics';
   info: {
-    description: 'Managed sub-topic taxonomy for IP vault questions and assets.';
-    displayName: 'Sub Topic';
+    description: 'Managed topic taxonomy for IP vault questions and assets.';
+    displayName: 'Topic';
     pluralName: 'topics';
     singularName: 'topic';
   };
