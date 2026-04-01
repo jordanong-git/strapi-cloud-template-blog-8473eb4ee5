@@ -1,0 +1,60 @@
+{
+  "kind": "collectionType",
+  "collectionName": "topics",
+  "info": {
+    "singularName": "topic",
+    "pluralName": "topics",
+    "displayName": "Sub Topic",
+    "description": "Managed sub-topic taxonomy for IP vault questions and assets."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "owner_id": {
+      "type": "string",
+      "private": true,
+      "configurable": false
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "sort_order": {
+      "type": "integer",
+      "default": 0
+    },
+    "questions": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::ip-question.ip-question",
+      "mappedBy": "sub_topics"
+    },
+    "assets": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::ip-asset.ip-asset",
+      "mappedBy": "sub_topics"
+    }
+  },
+  "config": {
+    "attributes": {
+      "owner_id": {
+        "hidden": true
+      }
+    }
+  }
+}

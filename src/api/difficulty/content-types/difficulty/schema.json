@@ -1,0 +1,62 @@
+{
+  "kind": "collectionType",
+  "collectionName": "difficulties",
+  "info": {
+    "singularName": "difficulty",
+    "pluralName": "difficulties",
+    "displayName": "Difficulty",
+    "description": "Managed difficulty taxonomy for IP vault content."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "level_number": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "max": 5
+    },
+    "description": {
+      "type": "text"
+    },
+    "owner_id": {
+      "type": "string",
+      "private": true,
+      "configurable": false
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "questions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::ip-question.ip-question",
+      "mappedBy": "difficulty"
+    },
+    "assets": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::ip-asset.ip-asset",
+      "mappedBy": "difficulty"
+    }
+  },
+  "config": {
+    "attributes": {
+      "owner_id": {
+        "hidden": true
+      }
+    }
+  }
+}

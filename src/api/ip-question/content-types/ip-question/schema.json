@@ -1,0 +1,113 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ip_questions",
+  "info": {
+    "singularName": "ip-question",
+    "pluralName": "ip-questions",
+    "displayName": "IP Question",
+    "description": "Reusable question bank entries for LMS generation."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "response_type": {
+      "type": "enumeration",
+      "enum": ["mcq", "saq", "laq"],
+      "default": "mcq",
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "prompt": {
+      "type": "text",
+      "required": true
+    },
+    "sub_topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
+      "inversedBy": "questions",
+      "required": true
+    },
+    "level": {
+      "type": "enumeration",
+      "enum": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "s1",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "required": true
+    },
+    "difficulty": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::difficulty.difficulty",
+      "inversedBy": "questions",
+      "required": true
+    },
+    "max_score": {
+      "type": "integer",
+      "default": 1,
+      "required": true,
+      "min": 1
+    },
+    "choices": {
+      "type": "json"
+    },
+    "accepted_answers": {
+      "type": "json"
+    },
+    "sample_answer": {
+      "type": "text"
+    },
+    "marking_rubric": {
+      "type": "richtext"
+    },
+    "explanation": {
+      "type": "text"
+    },
+    "asset_type": {
+      "type": "enumeration",
+      "enum": ["question"],
+      "default": "question",
+      "required": true
+    },
+    "owner_id": {
+      "type": "string",
+      "private": true,
+      "configurable": false
+    },
+    "contains_latex": {
+      "type": "boolean",
+      "default": false
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "config": {
+    "attributes": {
+      "asset_type": {
+        "hidden": true
+      },
+      "owner_id": {
+        "hidden": true
+      }
+    }
+  }
+}

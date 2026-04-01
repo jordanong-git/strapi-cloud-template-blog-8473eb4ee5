@@ -4,6 +4,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const mime = require('mime-types');
 const { categories, authors, articles, global, about } = require('../data/data.json');
+const { registerOwnershipLifecycles } = require('./utils/ip-vault-ownership');
+const { registerQuestionValidationLifecycles } = require('./utils/ip-question-validation');
 
 async function seedExampleApp() {
   const shouldImportSeedData = await isFirstRun();
@@ -22,6 +24,61 @@ async function seedExampleApp() {
       'Seed data has already been imported. We cannot reimport unless you clear your database first.'
     );
   }
+}
+
+async function removeSensitiveApiPermissions() {
+  const roles = await strapi.query('plugin::users-permissions.role').findMany({
+    where: {
+      type: {
+        $in: ['public', 'authenticated'],
+      },
+    },
+  });
+
+  if (!roles.length) {
+    return;
+  }
+
+  const sensitiveActions = [
+    'api::ip-question.ip-question.find',
+    'api::ip-question.ip-question.findOne',
+    'api::ip-question.ip-question.create',
+    'api::ip-question.ip-question.update',
+    'api::ip-question.ip-question.delete',
+    'api::ip-asset.ip-asset.find',
+    'api::ip-asset.ip-asset.findOne',
+    'api::ip-asset.ip-asset.create',
+    'api::ip-asset.ip-asset.update',
+    'api::ip-asset.ip-asset.delete',
+    'api::ip-audit-log.ip-audit-log.find',
+    'api::ip-audit-log.ip-audit-log.findOne',
+    'api::ip-audit-log.ip-audit-log.create',
+    'api::ip-audit-log.ip-audit-log.update',
+    'api::ip-audit-log.ip-audit-log.delete',
+    'api::topic.topic.find',
+    'api::topic.topic.findOne',
+    'api::topic.topic.create',
+    'api::topic.topic.update',
+    'api::topic.topic.delete',
+    'api::difficulty.difficulty.find',
+    'api::difficulty.difficulty.findOne',
+    'api::difficulty.difficulty.create',
+    'api::difficulty.difficulty.update',
+    'api::difficulty.difficulty.delete',
+  ];
+
+  await Promise.all(
+    roles.map((role) =>
+      strapi.query('plugin::users-permissions.permission').deleteMany({
+        where: {
+          role: role.id,
+          action: {
+            $in: sensitiveActions,
+          },
+        },
+      })
+    )
+  );
 }
 
 async function isFirstRun() {
@@ -270,5 +327,8 @@ async function main() {
 
 
 module.exports = async () => {
+  registerOwnershipLifecycles(strapi);
+  registerQuestionValidationLifecycles(strapi);
   await seedExampleApp();
+  await removeSensitiveApiPermissions();
 };

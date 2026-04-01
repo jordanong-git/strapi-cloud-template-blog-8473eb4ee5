@@ -1,0 +1,93 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ip_assets",
+  "info": {
+    "singularName": "ip-asset",
+    "pluralName": "ip-assets",
+    "displayName": "IP Asset",
+    "description": "Reusable worksheets, videos, PDFs, and text assets for LMS delivery."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "asset_type": {
+      "type": "enumeration",
+      "enum": ["worksheet", "video", "pdf", "text"],
+      "required": true
+    },
+    "level": {
+      "type": "enumeration",
+      "enum": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "s1",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "required": true
+    },
+    "owner_id": {
+      "type": "string",
+      "private": true,
+      "configurable": false
+    },
+    "object_key": {
+      "type": "string"
+    },
+    "file_name": {
+      "type": "string"
+    },
+    "mime_type": {
+      "type": "string"
+    },
+    "content_text": {
+      "type": "text"
+    },
+    "contains_latex": {
+      "type": "boolean",
+      "default": false
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "sub_topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
+      "inversedBy": "assets",
+      "required": true
+    },
+    "difficulty": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::difficulty.difficulty",
+      "inversedBy": "assets",
+      "required": true
+    }
+  },
+  "config": {
+    "attributes": {
+      "owner_id": {
+        "hidden": true
+      }
+    }
+  }
+}

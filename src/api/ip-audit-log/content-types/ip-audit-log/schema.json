@@ -1,0 +1,72 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ip_audit_logs",
+  "info": {
+    "singularName": "ip-audit-log",
+    "pluralName": "ip-audit-logs",
+    "displayName": "IP Audit Log",
+    "description": "Tracks LMS requests into the private IP vault."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "action": {
+      "type": "enumeration",
+      "enum": ["generate_questions", "generate_worksheet", "asset_url"],
+      "required": true
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "requesting_user_id": {
+      "type": "string"
+    },
+    "requesting_user_email": {
+      "type": "email"
+    },
+    "outlet_id": {
+      "type": "string"
+    },
+    "outlet_name": {
+      "type": "string"
+    },
+    "owner_id": {
+      "type": "string"
+    },
+    "sub_topic": {
+      "type": "string"
+    },
+    "level": {
+      "type": "string"
+    },
+    "difficulty": {
+      "type": "string"
+    },
+    "requested_count": {
+      "type": "integer"
+    },
+    "returned_count": {
+      "type": "integer"
+    },
+    "asset_id": {
+      "type": "integer"
+    },
+    "query_params": {
+      "type": "json"
+    },
+    "requested_at": {
+      "type": "datetime",
+      "required": true
+    },
+    "success": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "notes": {
+      "type": "text"
+    }
+  }
+}
