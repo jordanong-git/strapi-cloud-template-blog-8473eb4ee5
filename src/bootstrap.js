@@ -61,6 +61,11 @@ async function removeSensitiveApiPermissions() {
     'api::topic.topic.create',
     'api::topic.topic.update',
     'api::topic.topic.delete',
+    'api::level.level.find',
+    'api::level.level.findOne',
+    'api::level.level.create',
+    'api::level.level.update',
+    'api::level.level.delete',
     'api::module.module.find',
     'api::module.module.findOne',
     'api::module.module.create',
@@ -193,7 +198,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
       label: 'Academic Level',
-      description: 'Target academic level such as P1, P2, P3, S1, or S2.',
+      description: 'Select the managed academic level, such as P1, P2, P3, or S1.',
       placeholder: 'Select the target level',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'difficulty', {
@@ -209,9 +214,8 @@ async function updateIpQuestionContentManagerConfiguration() {
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'choices', {
       label: 'Choices (MCQ only)',
       description:
-        'Fill this only for MCQ. Enter a JSON array of choices and mark the correct option(s). Leave empty for SAQ and LAQ. Example: [{"choice_text":"3/4","is_correct":true,"order_index":0},{"choice_text":"2/3","is_correct":false,"order_index":1},{"choice_text":"1/4","is_correct":false,"order_index":2}]',
-      placeholder:
-        '[{\"choice_text\":\"3/4\",\"is_correct\":true,\"order_index\":0},{\"choice_text\":\"2/3\",\"is_correct\":false,\"order_index\":1},{\"choice_text\":\"1/4\",\"is_correct\":false,\"order_index\":2}]',
+        'Fill this only for MCQ. Use the editor below to add answer options, mark the correct one, and control display order. Leave empty for SAQ and LAQ.',
+      placeholder: '',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'accepted_answers', {
       label: 'Accepted Answers (SAQ only)',

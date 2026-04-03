@@ -1,11 +1,11 @@
 {
   "kind": "collectionType",
-  "collectionName": "modules",
+  "collectionName": "levels",
   "info": {
-    "singularName": "module",
-    "pluralName": "modules",
-    "displayName": "Module",
-    "description": "Managed curriculum modules that group related topics."
+    "singularName": "level",
+    "pluralName": "levels",
+    "displayName": "Level",
+    "description": "Managed academic levels for IP vault content."
   },
   "options": {
     "draftAndPublish": true
@@ -16,16 +16,14 @@
       "type": "string",
       "required": true
     },
-    "level": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::level.level",
-      "inversedBy": "modules",
-      "required": true
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
     },
     "slug": {
       "type": "uid",
-      "targetField": "name",
+      "targetField": "code",
       "required": true
     },
     "description": {
@@ -44,23 +42,23 @@
       "type": "integer",
       "default": 0
     },
-    "topics": {
+    "modules": {
       "type": "relation",
       "relation": "oneToMany",
-      "target": "api::topic.topic",
-      "mappedBy": "module"
+      "target": "api::module.module",
+      "mappedBy": "level"
     },
     "questions": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::ip-question.ip-question",
-      "mappedBy": "module"
+      "mappedBy": "level"
     },
     "assets": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::ip-asset.ip-asset",
-      "mappedBy": "module"
+      "mappedBy": "level"
     }
   },
   "config": {

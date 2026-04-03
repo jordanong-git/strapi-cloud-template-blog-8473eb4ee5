@@ -5,6 +5,7 @@ const { errors } = require('@strapi/utils');
 const { ValidationError } = errors;
 
 const OWNED_MODELS = [
+  'api::level.level',
   'api::module.module',
   'api::ip-question.ip-question',
   'api::ip-asset.ip-asset',

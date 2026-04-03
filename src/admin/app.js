@@ -2,10 +2,12 @@ const MUTATE_COLLECTION_TYPES_LINKS =
   "Admin/CM/pages/App/mutate-collection-types-links";
 const MUTATE_EDIT_VIEW_LAYOUT =
   "Admin/CM/pages/EditView/mutate-edit-view-layout";
+const MCQ_CHOICES_CUSTOM_FIELD_UID = "global::mcq-choices";
 
 const DEFAULT_COLLECTION_SORTS = {
   "api::ip-question.ip-question": "title:ASC",
   "api::ip-asset.ip-asset": "title:ASC",
+  "api::level.level": "code:ASC",
   "api::module.module": "name:ASC",
   "api::topic.topic": "name:ASC",
   "api::difficulty.difficulty": "name:ASC",
@@ -82,6 +84,11 @@ const applyQuestionFieldVisibility = (field) => {
     ...field,
     attribute: {
       ...field.attribute,
+      ...(field.name === "choices"
+        ? {
+            customField: MCQ_CHOICES_CUSTOM_FIELD_UID,
+          }
+        : {}),
       conditions: {
         ...(field.attribute.conditions || {}),
         ...condition,
@@ -189,9 +196,28 @@ const bootstrap = (app) => {
   });
 };
 
+const register = (app) => {
+  app.customFields.register({
+    name: "mcq-choices",
+    type: "json",
+    intlLabel: {
+      id: "ip-vault.custom-fields.mcq-choices.label",
+      defaultMessage: "MCQ Choices",
+    },
+    intlDescription: {
+      id: "ip-vault.custom-fields.mcq-choices.description",
+      defaultMessage: "Structured editor for MCQ answer choices.",
+    },
+    components: {
+      Input: async () => import("./components/McqChoicesInput"),
+    },
+  });
+};
+
 export default {
   config: {
     locales: [],
   },
   bootstrap,
+  register,
 };

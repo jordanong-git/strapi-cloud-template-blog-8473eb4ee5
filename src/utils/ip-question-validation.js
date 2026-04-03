@@ -4,6 +4,7 @@ const { errors } = require('@strapi/utils');
 
 const { ValidationError } = errors;
 
+const LEVEL_UID = 'api::level.level';
 const MODULE_UID = 'api::module.module';
 const TOPIC_UID = 'api::topic.topic';
 const QUESTION_UID = 'api::ip-question.ip-question';
@@ -188,6 +189,18 @@ const refsMatch = (left, right) => {
   return false;
 };
 
+const resolveLevelRecord = async (strapi, levelRef) => {
+  const levelWhere = buildRelationWhereClause(levelRef);
+  if (!levelWhere) {
+    return null;
+  }
+
+  return strapi.db.query(LEVEL_UID).findOne({
+    where: levelWhere,
+    select: ['id', 'documentId', 'name', 'code', 'slug'],
+  });
+};
+
 const validateModuleTopicConsistency = async (strapi, data) => {
   if (!data || typeof data !== 'object') {
     return;
@@ -207,7 +220,12 @@ const validateModuleTopicConsistency = async (strapi, data) => {
 
   const moduleRecord = await strapi.db.query(MODULE_UID).findOne({
     where: moduleWhere,
-    select: ['id', 'documentId', 'name', 'level'],
+    select: ['id', 'documentId', 'name'],
+    populate: {
+      level: {
+        select: ['id', 'documentId', 'name', 'code', 'slug'],
+      },
+    },
   });
 
   if (!moduleRecord) {
@@ -215,10 +233,13 @@ const validateModuleTopicConsistency = async (strapi, data) => {
   }
 
   const moduleIdentity = normalizeRelationRef(moduleRecord);
+  const levelRef = normalizeRelationRef(data.level);
+  const levelRecord = await resolveLevelRecord(strapi, levelRef);
+  const moduleLevelRef = normalizeRelationRef(moduleRecord.level);
 
-  if (data.level && moduleRecord.level && data.level !== moduleRecord.level) {
+  if (levelRecord && moduleLevelRef && !refsMatch(normalizeRelationRef(levelRecord), moduleLevelRef)) {
     throw new ValidationError(
-      `Question level "${data.level}" does not match the selected module level "${moduleRecord.level}".`,
+      `Question level "${levelRecord.code || levelRecord.name}" does not match the selected module level "${moduleRecord.level.code || moduleRecord.level.name}".`,
     );
   }
 
@@ -295,9 +316,17 @@ const registerQuestionValidationLifecycles = (strapi) => {
         populate: {
           module: {
             select: ['id', 'documentId', 'name'],
+            populate: {
+              level: {
+                select: ['id', 'documentId', 'name', 'code', 'slug'],
+              },
+            },
           },
           topics: {
             select: ['id', 'documentId', 'name'],
+          },
+          level: {
+            select: ['id', 'documentId', 'name', 'code', 'slug'],
           },
         },
       });

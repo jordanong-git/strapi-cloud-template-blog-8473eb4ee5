@@ -672,9 +672,7 @@ export interface ApiIpAssetIpAsset extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required;
     file_name: Schema.Attribute.String;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
-    level: Schema.Attribute.Enumeration<
-      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 's1', 's2', 's3', 's4']
-    > &
+    level: Schema.Attribute.Relation<'manyToOne', 'api::level.level'> &
       Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -778,9 +776,7 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required;
     explanation: Schema.Attribute.Text;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
-    level: Schema.Attribute.Enumeration<
-      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 's1', 's2', 's3', 's4']
-    > &
+    level: Schema.Attribute.Relation<'manyToOne', 'api::level.level'> &
       Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -817,6 +813,46 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
+  collectionName: 'levels';
+  info: {
+    description: 'Managed academic levels for IP vault content.';
+    displayName: 'Level';
+    pluralName: 'levels';
+    singularName: 'level';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    assets: Schema.Attribute.Relation<'oneToMany', 'api::ip-asset.ip-asset'>;
+    code: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
+    is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::level.level'> &
+      Schema.Attribute.Private;
+    modules: Schema.Attribute.Relation<'oneToMany', 'api::module.module'>;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    owner_id: Schema.Attribute.String & Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    questions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::ip-question.ip-question'
+    >;
+    slug: Schema.Attribute.UID<'code'> & Schema.Attribute.Required;
+    sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiModuleModule extends Struct.CollectionTypeSchema {
   collectionName: 'modules';
   info: {
@@ -835,9 +871,7 @@ export interface ApiModuleModule extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     description: Schema.Attribute.Text;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
-    level: Schema.Attribute.Enumeration<
-      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 's1', 's2', 's3', 's4']
-    > &
+    level: Schema.Attribute.Relation<'manyToOne', 'api::level.level'> &
       Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -1418,6 +1452,7 @@ declare module '@strapi/strapi' {
       'api::ip-asset.ip-asset': ApiIpAssetIpAsset;
       'api::ip-audit-log.ip-audit-log': ApiIpAuditLogIpAuditLog;
       'api::ip-question.ip-question': ApiIpQuestionIpQuestion;
+      'api::level.level': ApiLevelLevel;
       'api::module.module': ApiModuleModule;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;

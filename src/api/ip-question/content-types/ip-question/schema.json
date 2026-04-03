@@ -41,19 +41,10 @@
       "required": true
     },
     "level": {
-      "type": "enumeration",
-      "enum": [
-        "p1",
-        "p2",
-        "p3",
-        "p4",
-        "p5",
-        "p6",
-        "s1",
-        "s2",
-        "s3",
-        "s4"
-      ],
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::level.level",
+      "inversedBy": "questions",
       "required": true
     },
     "difficulty": {

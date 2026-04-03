@@ -4,6 +4,7 @@ const { errors } = require('@strapi/utils');
 
 const { ValidationError } = errors;
 
+const LEVEL_UID = 'api::level.level';
 const MODULE_UID = 'api::module.module';
 const TOPIC_UID = 'api::topic.topic';
 
@@ -107,7 +108,26 @@ const getExistingModule = async (strapi, where) => {
 
   return strapi.db.query(MODULE_UID).findOne({
     where,
-    select: ['id', 'documentId', 'name', 'level', 'slug'],
+    select: ['id', 'documentId', 'name', 'slug'],
+    populate: {
+      level: {
+        select: ['id', 'documentId', 'name', 'code', 'slug'],
+      },
+    },
+  });
+};
+
+const resolveLevelRecord = async (strapi, value) => {
+  const levelRef = normalizeRelationRef(value);
+  const levelWhere = buildRelationWhereClause(levelRef);
+
+  if (!levelWhere) {
+    return null;
+  }
+
+  return strapi.db.query(LEVEL_UID).findOne({
+    where: levelWhere,
+    select: ['id', 'documentId', 'name', 'code', 'slug'],
   });
 };
 
@@ -118,7 +138,12 @@ const resolveTopicModule = async (strapi, data, where) => {
   if (moduleWhere) {
     return strapi.db.query(MODULE_UID).findOne({
       where: moduleWhere,
-      select: ['id', 'documentId', 'name', 'level', 'slug'],
+      select: ['id', 'documentId', 'name', 'slug'],
+      populate: {
+        level: {
+          select: ['id', 'documentId', 'name', 'code', 'slug'],
+        },
+      },
     });
   }
 
@@ -130,7 +155,12 @@ const resolveTopicModule = async (strapi, data, where) => {
     where,
     populate: {
       module: {
-        select: ['id', 'documentId', 'name', 'level', 'slug'],
+        select: ['id', 'documentId', 'name', 'slug'],
+        populate: {
+          level: {
+            select: ['id', 'documentId', 'name', 'code', 'slug'],
+          },
+        },
       },
     },
   });
@@ -144,21 +174,33 @@ const registerTaxonomyLifecycles = (strapi) => {
 
     async beforeCreate(event) {
       const data = event.params?.data || {};
-      data.slug = buildModuleSlug(data.level, data.name);
+      const levelRecord = await resolveLevelRecord(strapi, data.level);
+
+      if (!levelRecord) {
+        throw new ValidationError('Module must belong to a valid academic level.');
+      }
+
+      data.slug = buildModuleSlug(levelRecord.code || levelRecord.slug || levelRecord.name, data.name);
     },
 
     async beforeUpdate(event) {
       const data = event.params?.data || {};
       const existingModule = await getExistingModule(strapi, event.params?.where);
 
-      const level = data.level || existingModule?.level;
+      const levelRecord =
+        (await resolveLevelRecord(strapi, data.level)) ||
+        existingModule?.level ||
+        null;
       const name = data.name || existingModule?.name;
 
-      if (!level || !name) {
+      if (!levelRecord || !name) {
         throw new ValidationError('Module must include both level and name.');
       }
 
-      data.slug = buildModuleSlug(level, name);
+      data.slug = buildModuleSlug(
+        levelRecord.code || levelRecord.slug || levelRecord.name,
+        name,
+      );
     },
   });
 

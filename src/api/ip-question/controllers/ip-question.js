@@ -165,6 +165,29 @@ const buildDifficultyRelationFilter = (difficultyValue, ownerId) => {
   };
 };
 
+const buildLevelRelationFilter = (levelValue, ownerId) => ({
+  $and: [
+    {
+      $or: [
+        { slug: { $eqi: levelValue } },
+        { code: { $eqi: levelValue } },
+        { name: { $eqi: levelValue } },
+      ],
+    },
+    {
+      owner_id: ownerId,
+    },
+    {
+      is_active: true,
+    },
+    {
+      publishedAt: {
+        $notNull: true,
+      },
+    },
+  ],
+});
+
 const buildModuleRelationFilter = (moduleValue, ownerId) => ({
   $and: [
     {
@@ -199,7 +222,7 @@ const buildQuestionFilters = (query) => {
 
   const where = {
     owner_id: ownerId,
-    level,
+    level: buildLevelRelationFilter(level, ownerId),
     asset_type: 'question',
     is_active: true,
     topics: buildTopicRelationFilter(topics, ownerId),
@@ -249,6 +272,22 @@ const mapModule = (module) => {
   };
 };
 
+const mapLevel = (level) => {
+  if (!level || typeof level !== 'object') {
+    return {
+      level: null,
+      level_name: null,
+      level_slug: null,
+    };
+  }
+
+  return {
+    level: level.code || level.slug || level.name || null,
+    level_name: level.name || null,
+    level_slug: level.slug || null,
+  };
+};
+
 const mapDifficulty = (difficulty) => {
   if (!difficulty || typeof difficulty !== 'object') {
     return {
@@ -268,6 +307,7 @@ const mapDifficulty = (difficulty) => {
 const mapQuestion = (question) => {
   const topics = mapTopics(question.topics);
   const mappedModule = mapModule(question.module);
+  const mappedLevel = mapLevel(question.level);
   const mappedDifficulty = mapDifficulty(question.difficulty);
 
   return {
@@ -286,7 +326,9 @@ const mapQuestion = (question) => {
     module_slug: mappedModule.module_slug,
     topic: topics[0] ?? null,
     topics,
-    level: question.level,
+    level: mappedLevel.level,
+    level_name: mappedLevel.level_name,
+    level_slug: mappedLevel.level_slug,
     difficulty: mappedDifficulty.difficulty,
     difficulty_slug: mappedDifficulty.difficulty_slug,
     difficulty_level: mappedDifficulty.difficulty_level,
@@ -338,6 +380,7 @@ const queryQuestions = async (strapi, where) =>
     where,
     orderBy: { updatedAt: 'desc' },
     populate: {
+      level: true,
       module: true,
       topics: true,
       difficulty: true,
@@ -354,6 +397,7 @@ const getPublishedAsset = async (strapi, assetId) =>
       },
     },
     populate: {
+      level: true,
       module: true,
       topics: true,
       difficulty: true,
@@ -524,7 +568,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
         ownerId,
         module: mapModule(asset.module).module,
         topics: mapTopics(asset.topics),
-        level: asset.level,
+        level: mapLevel(asset.level).level,
         difficulty: mapDifficulty(asset.difficulty).difficulty,
         assetId,
         queryParams: ctx.query,
