@@ -40,6 +40,13 @@
       ],
       "required": true
     },
+    "module": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::module.module",
+      "inversedBy": "assets",
+      "required": true
+    },
     "owner_id": {
       "type": "string",
       "private": true,

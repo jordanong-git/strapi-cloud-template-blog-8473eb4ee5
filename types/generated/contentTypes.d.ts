@@ -684,6 +684,8 @@ export interface ApiIpAssetIpAsset extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     metadata: Schema.Attribute.JSON;
     mime_type: Schema.Attribute.String;
+    module: Schema.Attribute.Relation<'manyToOne', 'api::module.module'> &
+      Schema.Attribute.Required;
     object_key: Schema.Attribute.String;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
@@ -724,6 +726,7 @@ export interface ApiIpAuditLogIpAuditLog extends Struct.CollectionTypeSchema {
       'api::ip-audit-log.ip-audit-log'
     > &
       Schema.Attribute.Private;
+    module: Schema.Attribute.String;
     notes: Schema.Attribute.Text;
     outlet_id: Schema.Attribute.String;
     outlet_name: Schema.Attribute.String;
@@ -796,6 +799,8 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
       > &
       Schema.Attribute.DefaultTo<1>;
     metadata: Schema.Attribute.JSON;
+    module: Schema.Attribute.Relation<'manyToOne', 'api::module.module'> &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     prompt: Schema.Attribute.Text & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
@@ -806,6 +811,50 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     title: Schema.Attribute.String & Schema.Attribute.Required;
     topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'> &
       Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiModuleModule extends Struct.CollectionTypeSchema {
+  collectionName: 'modules';
+  info: {
+    description: 'Managed curriculum modules that group related topics.';
+    displayName: 'Module';
+    pluralName: 'modules';
+    singularName: 'module';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    assets: Schema.Attribute.Relation<'oneToMany', 'api::ip-asset.ip-asset'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
+    is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    level: Schema.Attribute.Enumeration<
+      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 's1', 's2', 's3', 's4']
+    > &
+      Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::module.module'
+    > &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    owner_id: Schema.Attribute.String & Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    questions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::ip-question.ip-question'
+    >;
+    slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
+    sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    topics: Schema.Attribute.Relation<'oneToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -833,6 +882,8 @@ export interface ApiTopicTopic extends Struct.CollectionTypeSchema {
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::topic.topic'> &
       Schema.Attribute.Private;
+    module: Schema.Attribute.Relation<'manyToOne', 'api::module.module'> &
+      Schema.Attribute.Required;
     name: Schema.Attribute.String & Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
@@ -1367,6 +1418,7 @@ declare module '@strapi/strapi' {
       'api::ip-asset.ip-asset': ApiIpAssetIpAsset;
       'api::ip-audit-log.ip-audit-log': ApiIpAuditLogIpAuditLog;
       'api::ip-question.ip-question': ApiIpQuestionIpQuestion;
+      'api::module.module': ApiModuleModule;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

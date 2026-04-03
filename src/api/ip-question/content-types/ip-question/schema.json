@@ -26,6 +26,13 @@
       "type": "text",
       "required": true
     },
+    "module": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::module.module",
+      "inversedBy": "questions",
+      "required": true
+    },
     "topics": {
       "type": "relation",
       "relation": "manyToMany",

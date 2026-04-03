@@ -6,6 +6,7 @@ const MUTATE_EDIT_VIEW_LAYOUT =
 const DEFAULT_COLLECTION_SORTS = {
   "api::ip-question.ip-question": "title:ASC",
   "api::ip-asset.ip-asset": "title:ASC",
+  "api::module.module": "name:ASC",
   "api::topic.topic": "name:ASC",
   "api::difficulty.difficulty": "name:ASC",
   "api::ip-audit-log.ip-audit-log": "request_id:ASC",
@@ -17,7 +18,8 @@ const IP_QUESTION_EDIT_ROWS = [
   ["question_type"],
   ["title"],
   ["prompt"],
-  ["topics", "level"],
+  ["module", "level"],
+  ["topics"],
   ["difficulty", "max_score"],
   ["choices"],
   ["accepted_answers"],

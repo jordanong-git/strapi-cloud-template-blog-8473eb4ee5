@@ -165,9 +165,32 @@ const buildDifficultyRelationFilter = (difficultyValue, ownerId) => {
   };
 };
 
+const buildModuleRelationFilter = (moduleValue, ownerId) => ({
+  $and: [
+    {
+      $or: [
+        { slug: { $eqi: moduleValue } },
+        { name: { $eqi: moduleValue } },
+      ],
+    },
+    {
+      owner_id: ownerId,
+    },
+    {
+      is_active: true,
+    },
+    {
+      publishedAt: {
+        $notNull: true,
+      },
+    },
+  ],
+});
+
 const buildQuestionFilters = (query) => {
   const ownerId = parseRequiredString(query.ownerId, 'ownerId');
   const topics = parseMultiStringValues(query.topic ?? query.subTopic ?? query.sub_topic, 'topic');
+  const module = parseOptionalString(query.module);
   const level = parseRequiredString(query.level, 'level');
   const difficulty = parseRequiredString(query.difficulty, 'difficulty');
   const questionType = parseOptionalString(
@@ -190,9 +213,14 @@ const buildQuestionFilters = (query) => {
     where.question_type = questionType;
   }
 
+  if (module) {
+    where.module = buildModuleRelationFilter(module, ownerId);
+  }
+
   return {
     where,
     ownerId,
+    module,
     topics,
     level,
     difficulty,
@@ -206,6 +234,20 @@ const mapTopics = (topics) =>
         .map((topic) => topic?.name || topic?.slug || null)
         .filter(Boolean)
     : [];
+
+const mapModule = (module) => {
+  if (!module || typeof module !== 'object') {
+    return {
+      module: null,
+      module_slug: null,
+    };
+  }
+
+  return {
+    module: module.name || module.slug || null,
+    module_slug: module.slug || null,
+  };
+};
 
 const mapDifficulty = (difficulty) => {
   if (!difficulty || typeof difficulty !== 'object') {
@@ -225,6 +267,7 @@ const mapDifficulty = (difficulty) => {
 
 const mapQuestion = (question) => {
   const topics = mapTopics(question.topics);
+  const mappedModule = mapModule(question.module);
   const mappedDifficulty = mapDifficulty(question.difficulty);
 
   return {
@@ -239,6 +282,8 @@ const mapQuestion = (question) => {
     marking_rubric: question.marking_rubric ?? null,
     max_score: Number.isInteger(question.max_score) ? question.max_score : 1,
     explanation: question.explanation ?? null,
+    module: mappedModule.module,
+    module_slug: mappedModule.module_slug,
     topic: topics[0] ?? null,
     topics,
     level: question.level,
@@ -273,6 +318,7 @@ const createAuditLog = async (strapi, action, ctx, payload) => {
       outlet_id: requester.outlet_id,
       outlet_name: requester.outlet_name,
       owner_id: payload.ownerId ?? null,
+      module: payload.module ?? null,
       topic: Array.isArray(payload.topics) ? payload.topics.join(', ') : null,
       level: payload.level ?? null,
       difficulty: payload.difficulty ?? null,
@@ -292,6 +338,7 @@ const queryQuestions = async (strapi, where) =>
     where,
     orderBy: { updatedAt: 'desc' },
     populate: {
+      module: true,
       topics: true,
       difficulty: true,
     },
@@ -307,6 +354,7 @@ const getPublishedAsset = async (strapi, assetId) =>
       },
     },
     populate: {
+      module: true,
       topics: true,
       difficulty: true,
     },
@@ -323,6 +371,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       await createAuditLog(strapi, 'generate_questions', ctx, {
         ownerId: filters.ownerId,
+        module: filters.module,
         topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
@@ -342,6 +391,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     } catch (error) {
       await createAuditLog(strapi, 'generate_questions', ctx, {
         ownerId: filters.ownerId,
+        module: filters.module,
         topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
@@ -366,6 +416,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
         ownerId: filters.ownerId,
+        module: filters.module,
         topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
@@ -381,6 +432,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
           worksheet: {
             title: `${filters.topics.join(', ')} Worksheet`,
             owner_id: filters.ownerId,
+            module: filters.module,
             topic: filters.topics[0] ?? null,
             topics: filters.topics,
             level: filters.level,
@@ -397,6 +449,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     } catch (error) {
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
         ownerId: filters.ownerId,
+        module: filters.module,
         topics: filters.topics,
         level: filters.level,
         difficulty: filters.difficulty,
@@ -469,6 +522,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       await createAuditLog(strapi, 'asset_url', ctx, {
         ownerId,
+        module: mapModule(asset.module).module,
         topics: mapTopics(asset.topics),
         level: asset.level,
         difficulty: mapDifficulty(asset.difficulty).difficulty,
@@ -482,6 +536,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
           id: asset.id,
           documentId: asset.documentId,
           title: asset.title,
+          module: mapModule(asset.module).module,
           asset_type: asset.asset_type,
           owner_id: asset.owner_id,
           object_key: asset.object_key,

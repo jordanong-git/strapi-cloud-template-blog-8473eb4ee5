@@ -6,6 +6,7 @@ const mime = require('mime-types');
 const { categories, authors, articles, global, about } = require('../data/data.json');
 const { registerOwnershipLifecycles } = require('./utils/ip-vault-ownership');
 const { registerQuestionValidationLifecycles } = require('./utils/ip-question-validation');
+const { registerTaxonomyLifecycles } = require('./utils/ip-vault-taxonomy');
 
 async function seedExampleApp() {
   const shouldImportSeedData = await isFirstRun();
@@ -60,6 +61,11 @@ async function removeSensitiveApiPermissions() {
     'api::topic.topic.create',
     'api::topic.topic.update',
     'api::topic.topic.delete',
+    'api::module.module.find',
+    'api::module.module.findOne',
+    'api::module.module.create',
+    'api::module.module.update',
+    'api::module.module.delete',
     'api::difficulty.difficulty.find',
     'api::difficulty.difficulty.findOne',
     'api::difficulty.difficulty.create',
@@ -141,7 +147,8 @@ async function updateIpQuestionContentManagerConfiguration() {
           createEditRow('question_type'),
           createEditRow('title'),
           createEditRow('prompt'),
-          createEditRow('topics', 'level'),
+          createEditRow('module', 'level'),
+          createEditRow('topics'),
           createEditRow('difficulty', 'max_score'),
           createEditRow('choices'),
           createEditRow('accepted_answers'),
@@ -172,9 +179,16 @@ async function updateIpQuestionContentManagerConfiguration() {
       description: 'The actual question shown to the learner. Raw LaTeX is allowed here.',
       placeholder: 'Example: What is \\\\( \\\\frac{1}{2} + \\\\frac{1}{4} \\\\)?',
     });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'module', {
+      label: 'Curriculum Module',
+      description:
+        'Select the curriculum module for the chosen level, such as Core, Essential, or Data Analysis. The selected module must belong to the same academic level as the question.',
+      placeholder: 'Select a curriculum module',
+    });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'topics', {
       label: 'Topics',
-      description: 'Select one or more curriculum topics for this question.',
+      description:
+        'Select one or more topics within the selected curriculum module, such as Fractions or Measurement.',
       placeholder: 'Select one or more topics',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
@@ -481,6 +495,7 @@ async function main() {
 
 module.exports = async () => {
   registerOwnershipLifecycles(strapi);
+  registerTaxonomyLifecycles(strapi);
   registerQuestionValidationLifecycles(strapi);
   await seedExampleApp();
   await removeSensitiveApiPermissions();

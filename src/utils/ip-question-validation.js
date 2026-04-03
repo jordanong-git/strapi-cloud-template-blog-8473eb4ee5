@@ -4,6 +4,8 @@ const { errors } = require('@strapi/utils');
 
 const { ValidationError } = errors;
 
+const MODULE_UID = 'api::module.module';
+const TOPIC_UID = 'api::topic.topic';
 const QUESTION_UID = 'api::ip-question.ip-question';
 const VALID_QUESTION_TYPES = new Set(['mcq', 'saq', 'laq']);
 
@@ -87,17 +89,190 @@ const mergeExistingWithIncoming = (existingRecord, incomingData) => ({
   ...incomingData,
 });
 
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeRelationRef = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return { id: value };
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    if (!normalized) {
+      return null;
+    }
+
+    const numericValue = Number.parseInt(normalized, 10);
+    if (Number.isInteger(numericValue) && `${numericValue}` === normalized) {
+      return { id: numericValue };
+    }
+
+    return { documentId: normalized };
+  }
+
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  if (Number.isInteger(value.id)) {
+    return { id: value.id };
+  }
+
+  if (isNonEmptyString(value.documentId)) {
+    return { documentId: value.documentId.trim() };
+  }
+
+  if (Array.isArray(value.set) && value.set.length > 0) {
+    return normalizeRelationRef(value.set[0]);
+  }
+
+  if (Array.isArray(value.connect) && value.connect.length > 0) {
+    return normalizeRelationRef(value.connect[0]);
+  }
+
+  return null;
+};
+
+const normalizeRelationRefs = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeRelationRef).filter(Boolean);
+  }
+
+  if (isPlainObject(value)) {
+    if (Array.isArray(value.set)) {
+      return value.set.map(normalizeRelationRef).filter(Boolean);
+    }
+
+    if (Array.isArray(value.connect)) {
+      return value.connect.map(normalizeRelationRef).filter(Boolean);
+    }
+  }
+
+  const singleRef = normalizeRelationRef(value);
+  return singleRef ? [singleRef] : [];
+};
+
+const buildRelationWhereClause = (ref) => {
+  if (!ref) {
+    return null;
+  }
+
+  if (Number.isInteger(ref.id)) {
+    return { id: ref.id };
+  }
+
+  if (isNonEmptyString(ref.documentId)) {
+    return { documentId: ref.documentId.trim() };
+  }
+
+  return null;
+};
+
+const refsMatch = (left, right) => {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (Number.isInteger(left.id) && Number.isInteger(right.id)) {
+    return left.id === right.id;
+  }
+
+  if (isNonEmptyString(left.documentId) && isNonEmptyString(right.documentId)) {
+    return left.documentId.trim() === right.documentId.trim();
+  }
+
+  return false;
+};
+
+const validateModuleTopicConsistency = async (strapi, data) => {
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+
+  const moduleRef = normalizeRelationRef(data.module);
+  const topicRefs = normalizeRelationRefs(data.topics);
+
+  if (!moduleRef || topicRefs.length === 0) {
+    return;
+  }
+
+  const moduleWhere = buildRelationWhereClause(moduleRef);
+  if (!moduleWhere) {
+    return;
+  }
+
+  const moduleRecord = await strapi.db.query(MODULE_UID).findOne({
+    where: moduleWhere,
+    select: ['id', 'documentId', 'name', 'level'],
+  });
+
+  if (!moduleRecord) {
+    throw new ValidationError('Selected module could not be found.');
+  }
+
+  const moduleIdentity = normalizeRelationRef(moduleRecord);
+
+  if (data.level && moduleRecord.level && data.level !== moduleRecord.level) {
+    throw new ValidationError(
+      `Question level "${data.level}" does not match the selected module level "${moduleRecord.level}".`,
+    );
+  }
+
+  const topicRecords = await Promise.all(
+    topicRefs.map(async (topicRef) => {
+      const topicWhere = buildRelationWhereClause(topicRef);
+      if (!topicWhere) {
+        return null;
+      }
+
+      return strapi.db.query(TOPIC_UID).findOne({
+        where: topicWhere,
+        select: ['id', 'documentId', 'name'],
+        populate: {
+          module: {
+            select: ['id', 'documentId', 'name'],
+          },
+        },
+      });
+    }),
+  );
+
+  const missingTopic = topicRecords.find((topic) => !topic);
+  if (missingTopic) {
+    throw new ValidationError('One or more selected topics could not be found.');
+  }
+
+  const invalidTopic = topicRecords.find((topic) => {
+    const topicModule = normalizeRelationRef(topic?.module);
+    return !topicModule || !refsMatch(topicModule, moduleIdentity);
+  });
+
+  if (invalidTopic) {
+    throw new ValidationError(
+      `Topic "${invalidTopic.name}" does not belong to the selected module "${moduleRecord.name}".`,
+    );
+  }
+};
+
 const registerQuestionValidationLifecycles = (strapi) => {
   strapi.db.lifecycles.subscribe({
     models: [QUESTION_UID],
 
-    beforeCreate(event) {
+    async beforeCreate(event) {
       validateQuestionPayload(event.params?.data);
+      await validateModuleTopicConsistency(strapi, event.params?.data);
     },
 
-    beforeCreateMany(event) {
+    async beforeCreateMany(event) {
       const items = Array.isArray(event.params?.data) ? event.params.data : [];
-      items.forEach(validateQuestionPayload);
+      for (const item of items) {
+        validateQuestionPayload(item);
+        await validateModuleTopicConsistency(strapi, item);
+      }
     },
 
     async beforeUpdate(event) {
@@ -117,9 +292,19 @@ const registerQuestionValidationLifecycles = (strapi) => {
           'marking_rubric',
           'max_score',
         ],
+        populate: {
+          module: {
+            select: ['id', 'documentId', 'name'],
+          },
+          topics: {
+            select: ['id', 'documentId', 'name'],
+          },
+        },
       });
 
-      validateQuestionPayload(mergeExistingWithIncoming(existingRecord || {}, event.params?.data || {}));
+      const mergedPayload = mergeExistingWithIncoming(existingRecord || {}, event.params?.data || {});
+      validateQuestionPayload(mergedPayload);
+      await validateModuleTopicConsistency(strapi, mergedPayload);
     },
   });
 };

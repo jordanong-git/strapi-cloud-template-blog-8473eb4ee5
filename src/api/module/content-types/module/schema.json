@@ -1,11 +1,11 @@
 {
   "kind": "collectionType",
-  "collectionName": "topics",
+  "collectionName": "modules",
   "info": {
-    "singularName": "topic",
-    "pluralName": "topics",
-    "displayName": "Topic",
-    "description": "Managed topic taxonomy for IP vault questions and assets."
+    "singularName": "module",
+    "pluralName": "modules",
+    "displayName": "Module",
+    "description": "Managed curriculum modules that group related topics."
   },
   "options": {
     "draftAndPublish": true
@@ -16,6 +16,22 @@
       "type": "string",
       "required": true
     },
+    "level": {
+      "type": "enumeration",
+      "enum": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "s1",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "required": true
+    },
     "slug": {
       "type": "uid",
       "targetField": "name",
@@ -23,13 +39,6 @@
     },
     "description": {
       "type": "text"
-    },
-    "module": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::module.module",
-      "inversedBy": "topics",
-      "required": true
     },
     "owner_id": {
       "type": "string",
@@ -44,17 +53,23 @@
       "type": "integer",
       "default": 0
     },
+    "topics": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::topic.topic",
+      "mappedBy": "module"
+    },
     "questions": {
       "type": "relation",
-      "relation": "manyToMany",
+      "relation": "oneToMany",
       "target": "api::ip-question.ip-question",
-      "mappedBy": "topics"
+      "mappedBy": "module"
     },
     "assets": {
       "type": "relation",
-      "relation": "manyToMany",
+      "relation": "oneToMany",
       "target": "api::ip-asset.ip-asset",
-      "mappedBy": "topics"
+      "mappedBy": "module"
     }
   },
   "config": {

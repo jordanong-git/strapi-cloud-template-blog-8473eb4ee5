@@ -35,6 +35,9 @@
     "owner_id": {
       "type": "string"
     },
+    "module": {
+      "type": "string"
+    },
     "topic": {
       "type": "string"
     },
