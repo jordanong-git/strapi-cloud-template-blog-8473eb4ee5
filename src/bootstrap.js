@@ -181,7 +181,8 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'prompt', {
       label: 'Question Text',
-      description: 'The actual question shown to the learner. Raw LaTeX is allowed here.',
+      description:
+        'The actual question shown to the learner. Use the MathType toolbar below when you need equation input, while keeping raw LaTeX in storage.',
       placeholder: 'Example: What is \\\\( \\\\frac{1}{2} + \\\\frac{1}{4} \\\\)?',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'module', {
@@ -226,7 +227,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'sample_answer', {
       label: 'Sample Answer (LAQ mainly)',
       description:
-        'Mainly for LAQ. Provide a model answer or sample working for teachers and grading reference. Example: Convert both fractions to quarters, add the numerators, then simplify the final answer to 3/4.',
+        'Mainly for LAQ. Provide a model answer or sample working for teachers and grading reference. The MathType toolbar below can be used for equation input while keeping raw LaTeX in storage. Example: Convert both fractions to quarters, add the numerators, then simplify the final answer to 3/4.',
       placeholder:
         'Example: Convert both fractions to quarters, add the numerators, then simplify the final answer to 3/4.',
     });
@@ -239,7 +240,8 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'explanation', {
       label: 'Explanation',
-      description: 'Optional teaching explanation or solution notes.',
+      description:
+        'Optional teaching explanation or solution notes. The MathType toolbar below can be used for equation input while keeping raw LaTeX in storage.',
       placeholder: 'Explain the method or common mistake here.',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'contains_latex', {

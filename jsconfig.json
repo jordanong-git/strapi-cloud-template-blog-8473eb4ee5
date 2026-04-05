@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
+    "module": "NodeNext",
     "moduleResolution": "nodenext",
     "target": "ES2021",
+    "jsx": "react-jsx",
     "checkJs": true,
     "allowJs": true
-  }
+  },
+  "include": ["src/**/*.js", "src/**/*.jsx", "types/**/*.d.ts"]
 }

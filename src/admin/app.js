@@ -3,6 +3,7 @@ const MUTATE_COLLECTION_TYPES_LINKS =
 const MUTATE_EDIT_VIEW_LAYOUT =
   "Admin/CM/pages/EditView/mutate-edit-view-layout";
 const MCQ_CHOICES_CUSTOM_FIELD_UID = "global::mcq-choices";
+const MATHTYPE_TEXT_CUSTOM_FIELD_UID = "global::mathtype-latex-text";
 
 const DEFAULT_COLLECTION_SORTS = {
   "api::ip-question.ip-question": "title:ASC",
@@ -75,8 +76,19 @@ const normalizeRow = (row) => {
 
 const applyQuestionFieldVisibility = (field) => {
   const condition = QUESTION_TYPE_VISIBILITY[field.name];
+  const mathTypeEnabledFields = new Set(["prompt", "sample_answer", "explanation"]);
 
   if (!condition) {
+    if (mathTypeEnabledFields.has(field.name)) {
+      return {
+        ...field,
+        attribute: {
+          ...field.attribute,
+          customField: MATHTYPE_TEXT_CUSTOM_FIELD_UID,
+        },
+      };
+    }
+
     return field;
   }
 
@@ -87,6 +99,11 @@ const applyQuestionFieldVisibility = (field) => {
       ...(field.name === "choices"
         ? {
             customField: MCQ_CHOICES_CUSTOM_FIELD_UID,
+          }
+        : {}),
+      ...(["prompt", "sample_answer", "explanation"].includes(field.name)
+        ? {
+            customField: MATHTYPE_TEXT_CUSTOM_FIELD_UID,
           }
         : {}),
       conditions: {
@@ -210,6 +227,22 @@ const register = (app) => {
     },
     components: {
       Input: async () => import("./components/McqChoicesInput"),
+    },
+  });
+
+  app.customFields.register({
+    name: "mathtype-latex-text",
+    type: "text",
+    intlLabel: {
+      id: "ip-vault.custom-fields.mathtype-latex-text.label",
+      defaultMessage: "MathType LaTeX Text",
+    },
+    intlDescription: {
+      id: "ip-vault.custom-fields.mathtype-latex-text.description",
+      defaultMessage: "Text editor with MathType-assisted equation authoring.",
+    },
+    components: {
+      Input: async () => import("./components/MathTypeTextInput"),
     },
   });
 };
