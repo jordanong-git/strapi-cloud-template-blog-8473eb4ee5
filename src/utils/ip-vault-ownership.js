@@ -56,12 +56,29 @@ const assignOwnerId = (data, ownerId) => {
   data.owner_id = ownerId;
 };
 
+const normalizeModelUid = (model) => {
+  if (typeof model === 'string' && model.trim()) {
+    return model.trim();
+  }
+
+  if (model && typeof model === 'object' && typeof model.uid === 'string' && model.uid.trim()) {
+    return model.uid.trim();
+  }
+
+  return null;
+};
+
 const findExistingOwnerId = async (strapi, model, where) => {
   if (!where || typeof where !== 'object') {
     return null;
   }
 
-  const existingRecord = await strapi.db.query(model).findOne({
+  const modelUid = normalizeModelUid(model);
+  if (!modelUid || !OWNED_MODELS.includes(modelUid)) {
+    return null;
+  }
+
+  const existingRecord = await strapi.db.query(modelUid).findOne({
     where,
     select: ['owner_id'],
   });
