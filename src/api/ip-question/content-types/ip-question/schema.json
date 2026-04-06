@@ -61,7 +61,8 @@
       "min": 1
     },
     "choices": {
-      "type": "json"
+      "type": "json",
+      "customField": "global::mcq-choices"
     },
     "accepted_answers": {
       "type": "json"

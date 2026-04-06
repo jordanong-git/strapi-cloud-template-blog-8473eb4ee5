@@ -1,9 +1,15 @@
+// @ts-check
+
 const MUTATE_COLLECTION_TYPES_LINKS =
   "Admin/CM/pages/App/mutate-collection-types-links";
-const MUTATE_EDIT_VIEW_LAYOUT =
-  "Admin/CM/pages/EditView/mutate-edit-view-layout";
 const MCQ_CHOICES_CUSTOM_FIELD_UID = "global::mcq-choices";
 
+/** @typedef {keyof typeof DEFAULT_COLLECTION_SORTS} SupportedCollectionUid */
+/** @typedef {{ uid?: string, search?: string } & Record<string, unknown>} CollectionTypeLink */
+/** @typedef {{ ctLinks?: CollectionTypeLink[] } & Record<string, unknown>} CollectionTypesHookPayload */
+/** @typedef {{ registerHook: (name: string, handler: (payload: CollectionTypesHookPayload) => CollectionTypesHookPayload) => void, customFields: { register: (config: Record<string, unknown>) => void } }} AdminApp */
+
+/** @type {Record<string, string>} */
 const DEFAULT_COLLECTION_SORTS = {
   "api::ip-question.ip-question": "title:ASC",
   "api::ip-asset.ip-asset": "title:ASC",
@@ -15,117 +21,22 @@ const DEFAULT_COLLECTION_SORTS = {
 };
 
 const DEFAULT_PAGE_SIZE = "10";
-const IP_QUESTION_DISPLAY_NAME = "IP Question";
-const IP_QUESTION_EDIT_ROWS = [
-  ["question_type"],
-  ["title"],
-  ["prompt"],
-  ["module", "level"],
-  ["topics"],
-  ["difficulty", "max_score"],
-  ["choices"],
-  ["accepted_answers"],
-  ["sample_answer"],
-  ["marking_rubric"],
-  ["explanation", "contains_latex"],
-];
-const QUESTION_TYPE_VISIBILITY = {
-  choices: {
-    visible: {
-      "==": [{ var: "question_type" }, "mcq"],
-    },
-  },
-  accepted_answers: {
-    visible: {
-      "==": [{ var: "question_type" }, "saq"],
-    },
-  },
-  sample_answer: {
-    visible: {
-      "==": [{ var: "question_type" }, "laq"],
-    },
-  },
-  marking_rubric: {
-    visible: {
-      "==": [{ var: "question_type" }, "laq"],
-    },
-  },
-};
 
+/**
+ * @param {string | null | undefined} sortValue
+ * @returns {boolean}
+ */
 const isInvalidSort = (sortValue) =>
   !sortValue ||
   sortValue === "undefined:undefined" ||
   sortValue.startsWith("undefined:") ||
   sortValue.endsWith(":undefined");
 
-const isIpQuestionLayout = (layout) =>
-  layout?.settings?.displayName === IP_QUESTION_DISPLAY_NAME;
-
-const normalizeRow = (row) => {
-  if (row.length <= 1) {
-    return row.map((field) => ({ ...field, size: 12 }));
-  }
-
-  if (row.length === 2) {
-    return row.map((field) => ({ ...field, size: 6 }));
-  }
-
-  return row;
-};
-
-const applyQuestionFieldVisibility = (field) => {
-  const condition = QUESTION_TYPE_VISIBILITY[field.name];
-
-  if (!condition) {
-    return field;
-  }
-
-  return {
-    ...field,
-    attribute: {
-      ...field.attribute,
-      ...(field.name === "choices"
-        ? {
-            customField: MCQ_CHOICES_CUSTOM_FIELD_UID,
-          }
-        : {}),
-      conditions: {
-        ...(field.attribute.conditions || {}),
-        ...condition,
-      },
-    },
-  };
-};
-
-const reorderIpQuestionLayout = (layout) => {
-  const flatFields = layout.layout.flatMap((panel) =>
-    panel.flatMap((row) => row.map(applyQuestionFieldVisibility))
-  );
-  const fieldByName = new Map(flatFields.map((field) => [field.name, field]));
-  const usedNames = new Set();
-  const orderedRows = IP_QUESTION_EDIT_ROWS.map((fieldNames) => {
-    const row = fieldNames
-      .map((fieldName) => fieldByName.get(fieldName))
-      .filter(Boolean);
-
-    row.forEach((field) => usedNames.add(field.name));
-    return normalizeRow(row);
-  }).filter((row) => row.length > 0);
-  const remainingRows = layout.layout
-    .flatMap((panel) => panel)
-    .map((row) =>
-      row
-        .map((field) => fieldByName.get(field.name) || applyQuestionFieldVisibility(field))
-        .filter((field) => !usedNames.has(field.name))
-    )
-    .filter((row) => row.length > 0);
-
-  return {
-    ...layout,
-    layout: [[...orderedRows, ...remainingRows]],
-  };
-};
-
+/**
+ * @param {string | null | undefined} search
+ * @param {string} defaultSort
+ * @returns {string}
+ */
 const ensureCollectionLinkSearch = (search, defaultSort) => {
   const params = new URLSearchParams(search ?? "");
 
@@ -144,6 +55,7 @@ const ensureCollectionLinkSearch = (search, defaultSort) => {
   return params.toString();
 };
 
+/** @returns {void} */
 const sanitizeInvalidAdminSort = () => {
   const url = new URL(window.location.href);
   const sort = url.searchParams.get("sort");
@@ -165,13 +77,29 @@ const sanitizeInvalidAdminSort = () => {
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 };
 
+/**
+ * @param {string | undefined} uid
+ * @returns {string | undefined}
+ */
+const getDefaultSort = (uid) => {
+  if (!uid || !(uid in DEFAULT_COLLECTION_SORTS)) {
+    return undefined;
+  }
+
+  return DEFAULT_COLLECTION_SORTS[/** @type {SupportedCollectionUid} */ (uid)];
+};
+
+/**
+ * @param {AdminApp} app
+ * @returns {void}
+ */
 const bootstrap = (app) => {
   sanitizeInvalidAdminSort();
 
-  app.registerHook(MUTATE_COLLECTION_TYPES_LINKS, ({ ctLinks, ...rest }) => ({
+  app.registerHook(MUTATE_COLLECTION_TYPES_LINKS, ({ ctLinks = [], ...rest }) => ({
     ...rest,
     ctLinks: ctLinks.map((link) => {
-      const defaultSort = DEFAULT_COLLECTION_SORTS[link.uid];
+      const defaultSort = getDefaultSort(link.uid);
 
       if (!defaultSort) {
         return link;
@@ -184,18 +112,12 @@ const bootstrap = (app) => {
     }),
   }));
 
-  app.registerHook(MUTATE_EDIT_VIEW_LAYOUT, ({ layout, ...rest }) => {
-    if (!isIpQuestionLayout(layout)) {
-      return { layout, ...rest };
-    }
-
-    return {
-      ...rest,
-      layout: reorderIpQuestionLayout(layout),
-    };
-  });
 };
 
+/**
+ * @param {AdminApp} app
+ * @returns {void}
+ */
 const register = (app) => {
   app.customFields.register({
     name: "mcq-choices",
@@ -209,7 +131,7 @@ const register = (app) => {
       defaultMessage: "Structured editor for MCQ answer choices.",
     },
     components: {
-      Input: async () => import("./components/McqChoicesInput"),
+      Input: async () => import("./components/McqChoicesInput.jsx"),
     },
   });
 };

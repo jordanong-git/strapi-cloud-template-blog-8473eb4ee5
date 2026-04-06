@@ -763,7 +763,8 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     asset_type: Schema.Attribute.Enumeration<['question']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'question'>;
-    choices: Schema.Attribute.JSON;
+    choices: Schema.Attribute.JSON &
+      Schema.Attribute.CustomField<'global::mcq-choices'>;
     contains_latex: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
