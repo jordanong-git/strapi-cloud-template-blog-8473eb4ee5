@@ -98,6 +98,12 @@ const register = (app) => {
 export default {
   config: {
     locales: [],
+    auth: {
+      logo: "/logo.png",
+    },
+    menu: {
+      logo: "/logo.png",
+    },
   },
   bootstrap,
   register,
