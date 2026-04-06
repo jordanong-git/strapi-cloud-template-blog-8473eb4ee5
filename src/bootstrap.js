@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict';
 
 const fs = require('fs-extra');
@@ -128,16 +129,16 @@ function mergeQuestionFieldMetadata(metadata, fieldName, editOverrides, listOver
   };
 }
 
-function createEditRow(...fieldNames) {
-  const size = fieldNames.length === 2 ? 6 : 12;
-
-  return fieldNames.map((name) => ({ name, size }));
-}
-
 async function updateIpQuestionContentManagerConfiguration() {
   const key = 'plugin_content_manager_configuration_content_types::api::ip-question.ip-question';
 
   await updateContentManagerConfiguration(key, (configuration) => {
+    const sanitizedLayouts = {
+      ...(configuration.layouts || {}),
+    };
+
+    delete sanitizedLayouts.edit;
+
     const nextConfiguration = {
       ...configuration,
       settings: {
@@ -146,24 +147,7 @@ async function updateIpQuestionContentManagerConfiguration() {
         defaultSortBy: 'title',
         defaultSortOrder: 'ASC',
       },
-      layouts: {
-        ...(configuration.layouts || {}),
-        edit: [
-          createEditRow('question_type'),
-          createEditRow('title'),
-          createEditRow('prompt'),
-          createEditRow('module', 'level'),
-          createEditRow('topics'),
-          createEditRow('difficulty', 'max_score'),
-          createEditRow('choices'),
-          createEditRow('accepted_answers'),
-          createEditRow('sample_answer'),
-          createEditRow('marking_rubric'),
-          createEditRow('explanation'),
-          createEditRow('contains_latex'),
-          createEditRow('is_active'),
-        ],
-      },
+      layouts: sanitizedLayouts,
       metadatas: {
         ...(configuration.metadatas || {}),
       },
