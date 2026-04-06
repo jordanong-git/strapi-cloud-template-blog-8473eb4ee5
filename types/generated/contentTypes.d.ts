@@ -646,7 +646,7 @@ export interface ApiIpAssetIpAsset extends Struct.CollectionTypeSchema {
   collectionName: 'ip_assets';
   info: {
     description: 'Reusable worksheets, videos, PDFs, and text assets for LMS delivery.';
-    displayName: 'IP Asset';
+    displayName: 'Media';
     pluralName: 'ip-assets';
     singularName: 'ip-asset';
   };
@@ -700,7 +700,7 @@ export interface ApiIpAuditLogIpAuditLog extends Struct.CollectionTypeSchema {
   collectionName: 'ip_audit_logs';
   info: {
     description: 'Tracks LMS requests into the private IP vault.';
-    displayName: 'IP Audit Log';
+    displayName: 'Audit log';
     pluralName: 'ip-audit-logs';
     singularName: 'ip-audit-log';
   };
@@ -751,7 +751,7 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
   collectionName: 'ip_questions';
   info: {
     description: 'Reusable question bank entries for LMS generation.';
-    displayName: 'IP Question';
+    displayName: 'Question bank';
     pluralName: 'ip-questions';
     singularName: 'ip-question';
   };

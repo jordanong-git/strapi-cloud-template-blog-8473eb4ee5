@@ -4,7 +4,7 @@
   "info": {
     "singularName": "ip-audit-log",
     "pluralName": "ip-audit-logs",
-    "displayName": "IP Audit Log",
+    "displayName": "Audit log",
     "description": "Tracks LMS requests into the private IP vault."
   },
   "options": {

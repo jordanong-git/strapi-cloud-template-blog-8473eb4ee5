@@ -4,7 +4,7 @@
   "info": {
     "singularName": "ip-question",
     "pluralName": "ip-questions",
-    "displayName": "IP Question",
+    "displayName": "Question bank",
     "description": "Reusable question bank entries for LMS generation."
   },
   "options": {
