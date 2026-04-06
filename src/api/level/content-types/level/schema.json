@@ -4,7 +4,7 @@
   "info": {
     "singularName": "level",
     "pluralName": "levels",
-    "displayName": "Level",
+    "displayName": "Academic Level",
     "description": "Managed academic levels for IP vault content."
   },
   "options": {
@@ -44,8 +44,14 @@
     },
     "modules": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "manyToMany",
       "target": "api::module.module",
+      "mappedBy": "level"
+    },
+    "topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
       "mappedBy": "level"
     },
     "questions": {

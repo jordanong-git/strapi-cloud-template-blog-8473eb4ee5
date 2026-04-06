@@ -63,6 +63,25 @@ const normalizeRelationRef = (value) => {
   return null;
 };
 
+const normalizeRelationRefs = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeRelationRef).filter(Boolean);
+  }
+
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.set)) {
+      return value.set.map(normalizeRelationRef).filter(Boolean);
+    }
+
+    if (Array.isArray(value.connect)) {
+      return value.connect.map(normalizeRelationRef).filter(Boolean);
+    }
+  }
+
+  const singleRef = normalizeRelationRef(value);
+  return singleRef ? [singleRef] : [];
+};
+
 const buildRelationWhereClause = (ref) => {
   if (!ref) {
     return null;
@@ -79,26 +98,35 @@ const buildRelationWhereClause = (ref) => {
   return null;
 };
 
-const buildModuleSlug = (level, name) => {
-  const normalizedLevel = slugify(level);
+const buildModuleSlug = (levels, name) => {
+  const normalizedLevels = [...new Set(
+    (Array.isArray(levels) ? levels : [])
+      .map((level) => slugify(level?.code || level?.slug || level?.name))
+      .filter(Boolean),
+  )].sort();
   const normalizedName = slugify(name);
 
-  if (!normalizedLevel || !normalizedName) {
-    throw new ValidationError('Module must include both level and name.');
+  if (normalizedLevels.length === 0 || !normalizedName) {
+    throw new ValidationError('Module must include at least one academic level and a name.');
   }
 
-  return `${normalizedLevel}-${normalizedName}`;
+  return `${normalizedLevels.join('-')}-${normalizedName}`;
 };
 
-const buildTopicSlug = (moduleRecord, name) => {
+const buildTopicSlug = (moduleRecord, levelRecords, name) => {
   const moduleSlug = slugify(moduleRecord?.slug);
+  const levelSlug = [...new Set(
+    (Array.isArray(levelRecords) ? levelRecords : [])
+      .map((level) => slugify(level?.code || level?.slug || level?.name))
+      .filter(Boolean),
+  )].sort().join('-');
   const normalizedName = slugify(name);
 
-  if (!moduleSlug || !normalizedName) {
-    throw new ValidationError('Topic must include a module and a name.');
+  if (!moduleSlug || !levelSlug || !normalizedName) {
+    throw new ValidationError('Topic must include a module, at least one academic level, and a name.');
   }
 
-  return `${moduleSlug}-${normalizedName}`;
+  return `${moduleSlug}-${levelSlug}-${normalizedName}`;
 };
 
 const getExistingModule = async (strapi, where) => {
@@ -117,18 +145,25 @@ const getExistingModule = async (strapi, where) => {
   });
 };
 
-const resolveLevelRecord = async (strapi, value) => {
-  const levelRef = normalizeRelationRef(value);
-  const levelWhere = buildRelationWhereClause(levelRef);
+const resolveLevelRecords = async (strapi, value) => {
+  const levelRefs = normalizeRelationRefs(value);
 
-  if (!levelWhere) {
-    return null;
-  }
+  const levelRecords = await Promise.all(
+    levelRefs.map(async (levelRef) => {
+      const levelWhere = buildRelationWhereClause(levelRef);
 
-  return strapi.db.query(LEVEL_UID).findOne({
-    where: levelWhere,
-    select: ['id', 'documentId', 'name', 'code', 'slug'],
-  });
+      if (!levelWhere) {
+        return null;
+      }
+
+      return strapi.db.query(LEVEL_UID).findOne({
+        where: levelWhere,
+        select: ['id', 'documentId', 'name', 'code', 'slug'],
+      });
+    }),
+  );
+
+  return levelRecords.filter(Boolean);
 };
 
 const resolveTopicModule = async (strapi, data, where) => {
@@ -168,39 +203,83 @@ const resolveTopicModule = async (strapi, data, where) => {
   return existingTopic?.module || null;
 };
 
+const resolveTopicLevels = async (strapi, data, where) => {
+  const incomingLevelRecords = await resolveLevelRecords(strapi, data?.level);
+  if (incomingLevelRecords.length > 0) {
+    return incomingLevelRecords;
+  }
+
+  if (!where || typeof where !== 'object') {
+    return [];
+  }
+
+  const existingTopic = await strapi.db.query(TOPIC_UID).findOne({
+    where,
+    populate: {
+      level: {
+        select: ['id', 'documentId', 'name', 'code', 'slug'],
+      },
+    },
+  });
+
+  if (Array.isArray(existingTopic?.level)) {
+    return existingTopic.level;
+  }
+
+  return existingTopic?.level ? [existingTopic.level] : [];
+};
+
+const refsMatch = (left, right) => {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (Number.isInteger(left.id) && Number.isInteger(right.id)) {
+    return left.id === right.id;
+  }
+
+  if (isNonEmptyString(left.documentId) && isNonEmptyString(right.documentId)) {
+    return left.documentId.trim() === right.documentId.trim();
+  }
+
+  return false;
+};
+
 const registerTaxonomyLifecycles = (strapi) => {
   strapi.db.lifecycles.subscribe({
     models: [MODULE_UID],
 
     async beforeCreate(event) {
       const data = event.params?.data || {};
-      const levelRecord = await resolveLevelRecord(strapi, data.level);
+      const levelRecords = await resolveLevelRecords(strapi, data.level);
 
-      if (!levelRecord) {
-        throw new ValidationError('Module must belong to a valid academic level.');
+      if (levelRecords.length === 0) {
+        throw new ValidationError('Module must belong to at least one valid academic level.');
       }
 
-      data.slug = buildModuleSlug(levelRecord.code || levelRecord.slug || levelRecord.name, data.name);
+      data.slug = buildModuleSlug(levelRecords, data.name);
     },
 
     async beforeUpdate(event) {
       const data = event.params?.data || {};
       const existingModule = await getExistingModule(strapi, event.params?.where);
+      const hasIncomingLevels = Object.prototype.hasOwnProperty.call(data, 'level');
+      const incomingLevelRecords = await resolveLevelRecords(strapi, data.level);
 
-      const levelRecord =
-        (await resolveLevelRecord(strapi, data.level)) ||
-        existingModule?.level ||
-        null;
+      const levelRecords = hasIncomingLevels
+        ? incomingLevelRecords
+        : Array.isArray(existingModule?.level)
+          ? existingModule.level
+          : existingModule?.level
+            ? [existingModule.level]
+            : [];
       const name = data.name || existingModule?.name;
 
-      if (!levelRecord || !name) {
-        throw new ValidationError('Module must include both level and name.');
+      if (levelRecords.length === 0 || !name) {
+        throw new ValidationError('Module must include at least one academic level and a name.');
       }
 
-      data.slug = buildModuleSlug(
-        levelRecord.code || levelRecord.slug || levelRecord.name,
-        name,
-      );
+      data.slug = buildModuleSlug(levelRecords, name);
     },
   });
 
@@ -210,21 +289,61 @@ const registerTaxonomyLifecycles = (strapi) => {
     async beforeCreate(event) {
       const data = event.params?.data || {};
       const moduleRecord = await resolveTopicModule(strapi, data);
+      const levelRecords = await resolveTopicLevels(strapi, data);
 
       if (!moduleRecord) {
         throw new ValidationError('Topic must belong to a valid module.');
       }
 
-      data.slug = buildTopicSlug(moduleRecord, data.name);
+      if (levelRecords.length === 0) {
+        throw new ValidationError('Topic must belong to at least one valid academic level.');
+      }
+
+      const moduleLevelRefs = normalizeRelationRefs(moduleRecord.level);
+      const invalidTopicLevel = levelRecords.find((levelRecord) => {
+        const topicLevelRef = normalizeRelationRef(levelRecord);
+        return (
+          moduleLevelRefs.length > 0 &&
+          !moduleLevelRefs.some((moduleLevelRef) => refsMatch(moduleLevelRef, topicLevelRef))
+        );
+      });
+
+      if (invalidTopicLevel) {
+        throw new ValidationError(
+          `Topic academic level "${invalidTopicLevel.code || invalidTopicLevel.name}" must be one of the selected module academic levels.`,
+        );
+      }
+
+      data.slug = buildTopicSlug(moduleRecord, levelRecords, data.name);
     },
 
     async beforeUpdate(event) {
       const data = event.params?.data || {};
       const moduleRecord = await resolveTopicModule(strapi, data, event.params?.where);
+      const levelRecords = await resolveTopicLevels(strapi, data, event.params?.where);
       const topicName = data.name;
 
       if (!moduleRecord) {
         throw new ValidationError('Topic must belong to a valid module.');
+      }
+
+      if (levelRecords.length === 0) {
+        throw new ValidationError('Topic must belong to at least one valid academic level.');
+      }
+
+      const moduleLevelRefs = normalizeRelationRefs(moduleRecord.level);
+      const invalidTopicLevel = levelRecords.find((levelRecord) => {
+        const topicLevelRef = normalizeRelationRef(levelRecord);
+        return (
+          moduleLevelRefs.length > 0 &&
+          !moduleLevelRefs.some((moduleLevelRef) => refsMatch(moduleLevelRef, topicLevelRef))
+        );
+      });
+
+      if (invalidTopicLevel) {
+        throw new ValidationError(
+          `Topic academic level "${invalidTopicLevel.code || invalidTopicLevel.name}" must be one of the selected module academic levels.`,
+        );
       }
 
       if (!topicName) {
@@ -232,11 +351,11 @@ const registerTaxonomyLifecycles = (strapi) => {
           where: event.params?.where,
           select: ['name'],
         });
-        data.slug = buildTopicSlug(moduleRecord, existingTopic?.name);
+        data.slug = buildTopicSlug(moduleRecord, levelRecords, existingTopic?.name);
         return;
       }
 
-      data.slug = buildTopicSlug(moduleRecord, topicName);
+      data.slug = buildTopicSlug(moduleRecord, levelRecords, topicName);
     },
   });
 };

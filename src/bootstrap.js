@@ -236,6 +236,93 @@ async function updateIpQuestionContentManagerConfiguration() {
   });
 }
 
+async function updateModuleContentManagerConfiguration() {
+  const key = 'plugin_content_manager_configuration_content_types::api::module.module';
+
+  await updateContentManagerConfiguration(key, (configuration) => {
+    const nextConfiguration = {
+      ...configuration,
+      settings: {
+        ...(configuration.settings || {}),
+        mainField: 'name',
+        defaultSortBy: 'name',
+        defaultSortOrder: 'ASC',
+      },
+      metadatas: {
+        ...(configuration.metadatas || {}),
+      },
+    };
+
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
+      label: 'Academic Level',
+      description: 'Select one or more academic levels for this module.',
+      placeholder: 'Select one or more academic levels',
+      mainField: 'name',
+    }, {
+      label: 'Academic Level',
+      searchable: true,
+      sortable: true,
+    });
+
+    return nextConfiguration;
+  });
+}
+
+async function updateTopicContentManagerConfiguration() {
+  const key = 'plugin_content_manager_configuration_content_types::api::topic.topic';
+
+  await updateContentManagerConfiguration(key, (configuration) => {
+    const nextConfiguration = {
+      ...configuration,
+      settings: {
+        ...(configuration.settings || {}),
+        mainField: 'name',
+        defaultSortBy: 'name',
+        defaultSortOrder: 'ASC',
+      },
+      metadatas: {
+        ...(configuration.metadatas || {}),
+      },
+      layouts: {
+        ...(configuration.layouts || {}),
+      },
+    };
+
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'module', {
+      label: 'Curriculum Module',
+      description: 'Select the curriculum module first.',
+      placeholder: 'Select a curriculum module',
+      mainField: 'name',
+    }, {
+      label: 'Curriculum Module',
+      searchable: true,
+      sortable: true,
+    });
+
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
+      label: 'Academic Level',
+      description: 'Select one or more academic levels for this topic within the chosen module.',
+      placeholder: 'Select one or more academic levels',
+      mainField: 'name',
+    }, {
+      label: 'Academic Level',
+      searchable: true,
+      sortable: true,
+    });
+
+    nextConfiguration.layouts.list = ['id', 'name', 'module', 'level', 'slug'];
+    nextConfiguration.layouts.edit = [
+      [{ name: 'name', size: 6 }, { name: 'slug', size: 6 }],
+      [{ name: 'module', size: 6 }, { name: 'level', size: 6 }],
+      [{ name: 'description', size: 6 }],
+      [{ name: 'is_active', size: 4 }, { name: 'sort_order', size: 4 }],
+      [{ name: 'questions', size: 6 }, { name: 'assets', size: 6 }],
+    ];
+
+    return nextConfiguration;
+  });
+}
+
 async function isFirstRun() {
   const pluginStore = strapi.store({
     environment: strapi.config.environment,
@@ -488,4 +575,6 @@ module.exports = async () => {
   await seedExampleApp();
   await removeSensitiveApiPermissions();
   await updateIpQuestionContentManagerConfiguration();
+  await updateModuleContentManagerConfiguration();
+  await updateTopicContentManagerConfiguration();
 };

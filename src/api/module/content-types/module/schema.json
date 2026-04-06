@@ -18,7 +18,7 @@
     },
     "level": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "manyToMany",
       "target": "api::level.level",
       "inversedBy": "modules",
       "required": true

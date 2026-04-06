@@ -31,6 +31,13 @@
       "inversedBy": "topics",
       "required": true
     },
+    "level": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::level.level",
+      "inversedBy": "topics",
+      "required": true
+    },
     "owner_id": {
       "type": "string",
       "private": true,

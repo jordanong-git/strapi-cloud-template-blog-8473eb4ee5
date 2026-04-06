@@ -818,7 +818,7 @@ export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
   collectionName: 'levels';
   info: {
     description: 'Managed academic levels for IP vault content.';
-    displayName: 'Level';
+    displayName: 'Academic Level';
     pluralName: 'levels';
     singularName: 'level';
   };
@@ -838,7 +838,7 @@ export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::level.level'> &
       Schema.Attribute.Private;
-    modules: Schema.Attribute.Relation<'oneToMany', 'api::module.module'>;
+    modules: Schema.Attribute.Relation<'manyToMany', 'api::module.module'>;
     name: Schema.Attribute.String & Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
@@ -848,6 +848,7 @@ export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
     >;
     slug: Schema.Attribute.UID<'code'> & Schema.Attribute.Required;
     sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -872,7 +873,7 @@ export interface ApiModuleModule extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     description: Schema.Attribute.Text;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
-    level: Schema.Attribute.Relation<'manyToOne', 'api::level.level'> &
+    level: Schema.Attribute.Relation<'manyToMany', 'api::level.level'> &
       Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -914,6 +915,8 @@ export interface ApiTopicTopic extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     description: Schema.Attribute.Text;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    level: Schema.Attribute.Relation<'manyToMany', 'api::level.level'> &
+      Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::topic.topic'> &
       Schema.Attribute.Private;

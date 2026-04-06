@@ -189,6 +189,8 @@ const refsMatch = (left, right) => {
   return false;
 };
 
+const getLevelDisplayValue = (level) => level?.code || level?.name || level?.slug || 'unknown';
+
 const resolveLevelRecord = async (strapi, levelRef) => {
   const levelWhere = buildRelationWhereClause(levelRef);
   if (!levelWhere) {
@@ -235,11 +237,21 @@ const validateModuleTopicConsistency = async (strapi, data) => {
   const moduleIdentity = normalizeRelationRef(moduleRecord);
   const levelRef = normalizeRelationRef(data.level);
   const levelRecord = await resolveLevelRecord(strapi, levelRef);
-  const moduleLevelRef = normalizeRelationRef(moduleRecord.level);
+  const moduleLevelRefs = normalizeRelationRefs(moduleRecord.level);
 
-  if (levelRecord && moduleLevelRef && !refsMatch(normalizeRelationRef(levelRecord), moduleLevelRef)) {
+  if (
+    levelRecord &&
+    moduleLevelRefs.length > 0 &&
+    !moduleLevelRefs.some((moduleLevelRef) => refsMatch(normalizeRelationRef(levelRecord), moduleLevelRef))
+  ) {
+    const allowedLevels = normalizeRelationRefs(moduleRecord.level)
+      .map((moduleLevelRef, index) => moduleRecord.level?.[index])
+      .filter(Boolean)
+      .map(getLevelDisplayValue)
+      .join(', ');
+
     throw new ValidationError(
-      `Question level "${levelRecord.code || levelRecord.name}" does not match the selected module level "${moduleRecord.level.code || moduleRecord.level.name}".`,
+      `Question academic level "${getLevelDisplayValue(levelRecord)}" does not match the selected module academic level${allowedLevels.includes(',') ? 's' : ''} "${allowedLevels}".`,
     );
   }
 
@@ -256,6 +268,9 @@ const validateModuleTopicConsistency = async (strapi, data) => {
         populate: {
           module: {
             select: ['id', 'documentId', 'name'],
+          },
+          level: {
+            select: ['id', 'documentId', 'name', 'code', 'slug'],
           },
         },
       });
@@ -275,6 +290,28 @@ const validateModuleTopicConsistency = async (strapi, data) => {
   if (invalidTopic) {
     throw new ValidationError(
       `Topic "${invalidTopic.name}" does not belong to the selected module "${moduleRecord.name}".`,
+    );
+  }
+
+  if (!levelRecord) {
+    return;
+  }
+
+  const invalidTopicLevel = topicRecords.find((topic) => {
+    if (!topic?.level) {
+      return false;
+    }
+
+    const topicLevels = normalizeRelationRefs(topic.level);
+    return (
+      topicLevels.length > 0 &&
+      !topicLevels.some((topicLevel) => refsMatch(topicLevel, normalizeRelationRef(levelRecord)))
+    );
+  });
+
+  if (invalidTopicLevel) {
+    throw new ValidationError(
+      `Topic "${invalidTopicLevel.name}" does not belong to the selected academic level "${getLevelDisplayValue(levelRecord)}".`,
     );
   }
 };
