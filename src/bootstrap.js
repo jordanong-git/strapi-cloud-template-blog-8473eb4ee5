@@ -133,12 +133,6 @@ async function updateIpQuestionContentManagerConfiguration() {
   const key = 'plugin_content_manager_configuration_content_types::api::ip-question.ip-question';
 
   await updateContentManagerConfiguration(key, (configuration) => {
-    const sanitizedLayouts = {
-      ...(configuration.layouts || {}),
-    };
-
-    delete sanitizedLayouts.edit;
-
     const nextConfiguration = {
       ...configuration,
       settings: {
@@ -147,7 +141,9 @@ async function updateIpQuestionContentManagerConfiguration() {
         defaultSortBy: 'title',
         defaultSortOrder: 'ASC',
       },
-      layouts: sanitizedLayouts,
+      layouts: {
+        ...(configuration.layouts || {}),
+      },
       metadatas: {
         ...(configuration.metadatas || {}),
       },
@@ -171,8 +167,8 @@ async function updateIpQuestionContentManagerConfiguration() {
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'module', {
       label: 'Curriculum Module',
       description:
-        'Select the curriculum module for the chosen level, such as Core, Essential, or Data Analysis. The selected module must belong to the same academic level as the question.',
-      placeholder: 'Select a curriculum module',
+        'Select one or more curriculum modules for the chosen academic levels, such as Core, Essential, or Data Analysis. Each selected module must belong to at least one selected academic level.',
+      placeholder: 'Select one or more curriculum modules',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'topics', {
       label: 'Topics',
@@ -182,8 +178,8 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
       label: 'Academic Level',
-      description: 'Select the managed academic level, such as P1, P2, P3, or S1.',
-      placeholder: 'Select the target level',
+      description: 'Select one or more managed academic levels, such as P1, P2, P3, or S1.',
+      placeholder: 'Select one or more target levels',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'difficulty', {
       label: 'Difficulty',
@@ -231,6 +227,37 @@ async function updateIpQuestionContentManagerConfiguration() {
       description: 'Turn this on if the question text or answers include raw LaTeX markup.',
       placeholder: '',
     });
+
+    nextConfiguration.layouts.list = [
+      'title',
+      'question_type',
+      'level',
+      'module',
+      'difficulty',
+      'max_score',
+      'updatedAt',
+    ];
+
+    nextConfiguration.layouts.edit = [
+      [{ name: 'question_type', size: 4 }, { name: 'title', size: 8 }],
+      [{ name: 'prompt', size: 12 }],
+      [
+        { name: 'level', size: 4 },
+        { name: 'module', size: 4 },
+        { name: 'difficulty', size: 4 },
+      ],
+      [{ name: 'topics', size: 8 }, { name: 'max_score', size: 4 }],
+      [{ name: 'choices', size: 12 }],
+      [{ name: 'accepted_answers', size: 12 }],
+      [
+        { name: 'sample_answer', size: 6 },
+        { name: 'contains_latex', size: 3 },
+        { name: 'is_active', size: 3 },
+      ],
+      [{ name: 'marking_rubric', size: 12 }],
+      [{ name: 'explanation', size: 12 }],
+      [{ name: 'metadata', size: 12 }],
+    ];
 
     return nextConfiguration;
   });

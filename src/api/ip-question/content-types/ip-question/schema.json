@@ -28,7 +28,7 @@
     },
     "module": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "manyToMany",
       "target": "api::module.module",
       "inversedBy": "questions",
       "required": true
@@ -42,7 +42,7 @@
     },
     "level": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "manyToMany",
       "target": "api::level.level",
       "inversedBy": "questions",
       "required": true

@@ -673,7 +673,7 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required;
     explanation: Schema.Attribute.Text;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
-    level: Schema.Attribute.Relation<'manyToOne', 'api::level.level'> &
+    level: Schema.Attribute.Relation<'manyToMany', 'api::level.level'> &
       Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -692,7 +692,7 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
       > &
       Schema.Attribute.DefaultTo<1>;
     metadata: Schema.Attribute.JSON;
-    module: Schema.Attribute.Relation<'manyToOne', 'api::module.module'> &
+    module: Schema.Attribute.Relation<'manyToMany', 'api::module.module'> &
       Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     prompt: Schema.Attribute.Text & Schema.Attribute.Required;
@@ -739,7 +739,7 @@ export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     questions: Schema.Attribute.Relation<
-      'oneToMany',
+      'manyToMany',
       'api::ip-question.ip-question'
     >;
     slug: Schema.Attribute.UID<'code'> & Schema.Attribute.Required;
@@ -781,7 +781,7 @@ export interface ApiModuleModule extends Struct.CollectionTypeSchema {
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     questions: Schema.Attribute.Relation<
-      'oneToMany',
+      'manyToMany',
       'api::ip-question.ip-question'
     >;
     slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;

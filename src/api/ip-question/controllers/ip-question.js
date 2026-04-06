@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict';
 
 const { randomUUID } = require('crypto');
@@ -259,32 +260,51 @@ const mapTopics = (topics) =>
     : [];
 
 const mapModule = (module) => {
-  if (!module || typeof module !== 'object') {
+  const modules = Array.isArray(module) ? module : module ? [module] : [];
+  const moduleNames = modules.map((item) => item?.name || item?.slug || null).filter(Boolean);
+  const moduleSlugs = modules.map((item) => item?.slug || null).filter(Boolean);
+
+  if (moduleNames.length === 0) {
     return {
       module: null,
       module_slug: null,
+      modules: [],
+      module_slugs: [],
     };
   }
 
   return {
-    module: module.name || module.slug || null,
-    module_slug: module.slug || null,
+    module: moduleNames[0] ?? null,
+    module_slug: moduleSlugs[0] ?? null,
+    modules: moduleNames,
+    module_slugs: moduleSlugs,
   };
 };
 
 const mapLevel = (level) => {
-  if (!level || typeof level !== 'object') {
+  const levels = Array.isArray(level) ? level : level ? [level] : [];
+  const levelValues = levels.map((item) => item?.code || item?.slug || item?.name || null).filter(Boolean);
+  const levelNames = levels.map((item) => item?.name || null).filter(Boolean);
+  const levelSlugs = levels.map((item) => item?.slug || null).filter(Boolean);
+
+  if (levelValues.length === 0) {
     return {
       level: null,
       level_name: null,
       level_slug: null,
+      levels: [],
+      level_names: [],
+      level_slugs: [],
     };
   }
 
   return {
-    level: level.code || level.slug || level.name || null,
-    level_name: level.name || null,
-    level_slug: level.slug || null,
+    level: levelValues[0] ?? null,
+    level_name: levelNames[0] ?? null,
+    level_slug: levelSlugs[0] ?? null,
+    levels: levelValues,
+    level_names: levelNames,
+    level_slugs: levelSlugs,
   };
 };
 
@@ -324,11 +344,16 @@ const mapQuestion = (question) => {
     explanation: question.explanation ?? null,
     module: mappedModule.module,
     module_slug: mappedModule.module_slug,
+    modules: mappedModule.modules,
+    module_slugs: mappedModule.module_slugs,
     topic: topics[0] ?? null,
     topics,
     level: mappedLevel.level,
     level_name: mappedLevel.level_name,
     level_slug: mappedLevel.level_slug,
+    levels: mappedLevel.levels,
+    level_names: mappedLevel.level_names,
+    level_slugs: mappedLevel.level_slugs,
     difficulty: mappedDifficulty.difficulty,
     difficulty_slug: mappedDifficulty.difficulty_slug,
     difficulty_level: mappedDifficulty.difficulty_level,

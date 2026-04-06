@@ -52,7 +52,7 @@
     },
     "questions": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "manyToMany",
       "target": "api::ip-question.ip-question",
       "mappedBy": "module"
     },
