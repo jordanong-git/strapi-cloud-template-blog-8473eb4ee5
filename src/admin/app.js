@@ -1,8 +1,23 @@
 // @ts-check
 
+import { createReturnToListAfterPublishAction } from "./components/ReturnToListAfterPublishAction";
+
 const MCQ_CHOICES_CUSTOM_FIELD_UID = "global::mcq-choices";
 
-/** @typedef {{ customFields: { register: (config: Record<string, unknown>) => void } }} AdminApp */
+/**
+ * @typedef {import("@strapi/content-manager/strapi-admin").DocumentActionComponent} DocumentActionComponent
+ */
+
+/**
+ * @typedef {{
+ *   customFields: { register: (config: Record<string, unknown>) => void },
+ *   getPlugin: (pluginId: string) => {
+ *     apis?: {
+ *       addDocumentAction?: (reducer: (actions: DocumentActionComponent[]) => DocumentActionComponent[]) => void
+ *     }
+ *   }
+ * }} AdminApp
+ */
 
 /**
  * @param {string | null | undefined} sortValue
@@ -42,6 +57,20 @@ const sanitizeInvalidAdminSort = () => {
  */
 const bootstrap = (app) => {
   sanitizeInvalidAdminSort();
+
+  const addDocumentAction = app.getPlugin("content-manager").apis?.addDocumentAction;
+
+  if (!addDocumentAction) {
+    return;
+  }
+
+  addDocumentAction((actions) =>
+    actions.map((action) =>
+      action.type === "publish"
+        ? createReturnToListAfterPublishAction(action)
+        : action
+    )
+  );
 };
 
 /**
