@@ -1,26 +1,8 @@
 // @ts-check
 
-const MUTATE_COLLECTION_TYPES_LINKS =
-  "Admin/CM/pages/App/mutate-collection-types-links";
 const MCQ_CHOICES_CUSTOM_FIELD_UID = "global::mcq-choices";
 
-/** @typedef {keyof typeof DEFAULT_COLLECTION_SORTS} SupportedCollectionUid */
-/** @typedef {{ uid?: string, search?: string } & Record<string, unknown>} CollectionTypeLink */
-/** @typedef {{ ctLinks?: CollectionTypeLink[] } & Record<string, unknown>} CollectionTypesHookPayload */
-/** @typedef {{ registerHook: (name: string, handler: (payload: CollectionTypesHookPayload) => CollectionTypesHookPayload) => void, customFields: { register: (config: Record<string, unknown>) => void } }} AdminApp */
-
-/** @type {Record<string, string>} */
-const DEFAULT_COLLECTION_SORTS = {
-  "api::ip-question.ip-question": "title:ASC",
-  "api::ip-asset.ip-asset": "title:ASC",
-  "api::level.level": "code:ASC",
-  "api::module.module": "name:ASC",
-  "api::topic.topic": "name:ASC",
-  "api::difficulty.difficulty": "name:ASC",
-  "api::ip-audit-log.ip-audit-log": "request_id:ASC",
-};
-
-const DEFAULT_PAGE_SIZE = "10";
+/** @typedef {{ customFields: { register: (config: Record<string, unknown>) => void } }} AdminApp */
 
 /**
  * @param {string | null | undefined} sortValue
@@ -31,29 +13,6 @@ const isInvalidSort = (sortValue) =>
   sortValue === "undefined:undefined" ||
   sortValue.startsWith("undefined:") ||
   sortValue.endsWith(":undefined");
-
-/**
- * @param {string | null | undefined} search
- * @param {string} defaultSort
- * @returns {string}
- */
-const ensureCollectionLinkSearch = (search, defaultSort) => {
-  const params = new URLSearchParams(search ?? "");
-
-  if (isInvalidSort(params.get("sort"))) {
-    params.set("sort", defaultSort);
-  }
-
-  if (!params.get("page")) {
-    params.set("page", "1");
-  }
-
-  if (!params.get("pageSize")) {
-    params.set("pageSize", DEFAULT_PAGE_SIZE);
-  }
-
-  return params.toString();
-};
 
 /** @returns {void} */
 const sanitizeInvalidAdminSort = () => {
@@ -78,40 +37,11 @@ const sanitizeInvalidAdminSort = () => {
 };
 
 /**
- * @param {string | undefined} uid
- * @returns {string | undefined}
- */
-const getDefaultSort = (uid) => {
-  if (!uid || !(uid in DEFAULT_COLLECTION_SORTS)) {
-    return undefined;
-  }
-
-  return DEFAULT_COLLECTION_SORTS[/** @type {SupportedCollectionUid} */ (uid)];
-};
-
-/**
  * @param {AdminApp} app
  * @returns {void}
  */
 const bootstrap = (app) => {
   sanitizeInvalidAdminSort();
-
-  app.registerHook(MUTATE_COLLECTION_TYPES_LINKS, ({ ctLinks = [], ...rest }) => ({
-    ...rest,
-    ctLinks: ctLinks.map((link) => {
-      const defaultSort = getDefaultSort(link.uid);
-
-      if (!defaultSort) {
-        return link;
-      }
-
-      return {
-        ...link,
-        search: ensureCollectionLinkSearch(link.search, defaultSort),
-      };
-    }),
-  }));
-
 };
 
 /**
