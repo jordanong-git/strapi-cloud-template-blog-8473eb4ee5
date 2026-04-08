@@ -278,6 +278,9 @@ async function updateModuleContentManagerConfiguration() {
       metadatas: {
         ...(configuration.metadatas || {}),
       },
+      layouts: {
+        ...(configuration.layouts || {}),
+      },
     };
 
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
@@ -290,6 +293,15 @@ async function updateModuleContentManagerConfiguration() {
       searchable: true,
       sortable: true,
     });
+
+    nextConfiguration.layouts.list = ['id', 'name', 'level', 'slug', 'updatedAt'];
+    nextConfiguration.layouts.edit = [
+      [{ name: 'name', size: 6 }, { name: 'level', size: 6 }],
+      [{ name: 'description', size: 12 }],
+      [{ name: 'is_active', size: 6 }, { name: 'sort_order', size: 6 }],
+      [{ name: 'topics', size: 6 }, { name: 'questions', size: 6 }],
+      [{ name: 'assets', size: 6 }],
+    ];
 
     return nextConfiguration;
   });

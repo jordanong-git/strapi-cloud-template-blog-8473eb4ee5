@@ -784,7 +784,7 @@ export interface ApiModuleModule extends Struct.CollectionTypeSchema {
       'manyToMany',
       'api::ip-question.ip-question'
     >;
-    slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
+    slug: Schema.Attribute.UID<'name'>;
     sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     topics: Schema.Attribute.Relation<'oneToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;

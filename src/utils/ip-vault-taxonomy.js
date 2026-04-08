@@ -98,6 +98,51 @@ const buildRelationWhereClause = (ref) => {
   return null;
 };
 
+const getRelationRecordsArray = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (value) {
+    return [value];
+  }
+
+  return [];
+};
+
+const getRelationRefKey = (value) => {
+  const normalizedRef = normalizeRelationRef(value);
+
+  if (!normalizedRef) {
+    return null;
+  }
+
+  if (Number.isInteger(normalizedRef.id)) {
+    return `id:${normalizedRef.id}`;
+  }
+
+  if (isNonEmptyString(normalizedRef.documentId)) {
+    return `documentId:${normalizedRef.documentId.trim()}`;
+  }
+
+  return null;
+};
+
+const dedupeRelationRecords = (records) => {
+  const seen = new Set();
+
+  return getRelationRecordsArray(records).filter((record) => {
+    const relationKey = getRelationRefKey(record);
+
+    if (!relationKey || seen.has(relationKey)) {
+      return false;
+    }
+
+    seen.add(relationKey);
+    return true;
+  });
+};
+
 const buildModuleSlug = (levels, name) => {
   const normalizedLevels = [...new Set(
     (Array.isArray(levels) ? levels : [])
@@ -107,7 +152,7 @@ const buildModuleSlug = (levels, name) => {
   const normalizedName = slugify(name);
 
   if (normalizedLevels.length === 0 || !normalizedName) {
-    throw new ValidationError('Module must include at least one academic level and a name.');
+    throw new ValidationError('Module must include at least one academic level and a name. The slug is generated automatically.');
   }
 
   return `${normalizedLevels.join('-')}-${normalizedName}`;
@@ -145,6 +190,36 @@ const getExistingModule = async (strapi, where) => {
   });
 };
 
+const getExistingModuleByDocumentId = async (strapi, documentId) => {
+  if (!isNonEmptyString(documentId)) {
+    return null;
+  }
+
+  const sharedQuery = {
+    where: { documentId: documentId.trim() },
+    select: ['id', 'documentId', 'name', 'slug', 'publishedAt'],
+    populate: {
+      level: {
+        select: ['id', 'documentId', 'name', 'code', 'slug'],
+      },
+    },
+  };
+
+  const draftModule = await strapi.db.query(MODULE_UID).findOne({
+    ...sharedQuery,
+    where: {
+      ...sharedQuery.where,
+      publishedAt: null,
+    },
+  });
+
+  if (draftModule) {
+    return draftModule;
+  }
+
+  return strapi.db.query(MODULE_UID).findOne(sharedQuery);
+};
+
 const resolveLevelRecords = async (strapi, value) => {
   const levelRefs = normalizeRelationRefs(value);
 
@@ -164,6 +239,77 @@ const resolveLevelRecords = async (strapi, value) => {
   );
 
   return levelRecords.filter(Boolean);
+};
+
+const resolveMergedLevelRecords = async (strapi, existingRecords, incomingValue) => {
+  if (incomingValue === undefined) {
+    return dedupeRelationRecords(existingRecords);
+  }
+
+  if (Array.isArray(incomingValue)) {
+    return dedupeRelationRecords(await resolveLevelRecords(strapi, incomingValue));
+  }
+
+  if (incomingValue && typeof incomingValue === 'object') {
+    if (Object.prototype.hasOwnProperty.call(incomingValue, 'set')) {
+      return dedupeRelationRecords(await resolveLevelRecords(strapi, incomingValue.set));
+    }
+
+    const hasConnect = Object.prototype.hasOwnProperty.call(incomingValue, 'connect');
+    const hasDisconnect = Object.prototype.hasOwnProperty.call(incomingValue, 'disconnect');
+
+    if (hasConnect || hasDisconnect) {
+      let mergedRecords = dedupeRelationRecords(existingRecords);
+
+      if (hasDisconnect) {
+        const disconnectRecords = await resolveLevelRecords(strapi, incomingValue.disconnect);
+
+        mergedRecords = mergedRecords.filter((existingRecord) => {
+          const existingRef = normalizeRelationRef(existingRecord);
+
+          return !disconnectRecords.some((disconnectRecord) =>
+            refsMatch(existingRef, normalizeRelationRef(disconnectRecord)));
+        });
+      }
+
+      if (hasConnect) {
+        const connectRecords = await resolveLevelRecords(strapi, incomingValue.connect);
+
+        for (const connectRecord of connectRecords) {
+          const connectRef = normalizeRelationRef(connectRecord);
+          const isAlreadyPresent = mergedRecords.some((existingRecord) =>
+            refsMatch(normalizeRelationRef(existingRecord), connectRef));
+
+          if (!isAlreadyPresent) {
+            mergedRecords.push(connectRecord);
+          }
+        }
+      }
+
+      return dedupeRelationRecords(mergedRecords);
+    }
+  }
+
+  return dedupeRelationRecords(await resolveLevelRecords(strapi, incomingValue));
+};
+
+const validateModuleData = async (strapi, data = {}, existingModule = null) => {
+  const levelRecords = await resolveMergedLevelRecords(
+    strapi,
+    getRelationRecordsArray(existingModule?.level),
+    data.level,
+  );
+  const hasIncomingName = Object.prototype.hasOwnProperty.call(data, 'name');
+  const name = hasIncomingName ? data.name : existingModule?.name;
+
+  if (levelRecords.length === 0 || !isNonEmptyString(name)) {
+    throw new ValidationError('Module must include at least one academic level and a name. The slug is generated automatically.');
+  }
+
+  return {
+    levelRecords,
+    name,
+  };
 };
 
 const resolveTopicModule = async (strapi, data, where) => {
@@ -246,38 +392,54 @@ const refsMatch = (left, right) => {
 };
 
 const registerTaxonomyLifecycles = (strapi) => {
+  strapi.documents.use(async (context, next) => {
+    if (context.uid !== MODULE_UID) {
+      return next();
+    }
+
+    if (!['create', 'update', 'publish'].includes(context.action)) {
+      return next();
+    }
+
+    if (context.action === 'publish') {
+      const existingModule = await getExistingModuleByDocumentId(strapi, context.params?.documentId);
+
+      if (existingModule) {
+        await validateModuleData(strapi, {}, existingModule);
+      }
+
+      return next();
+    }
+
+    const data = context.params?.data || {};
+    const existingModule = context.action === 'update'
+      ? await getExistingModuleByDocumentId(strapi, context.params?.documentId)
+      : null;
+
+    if (context.action === 'update' && !existingModule) {
+      return next();
+    }
+
+    const { levelRecords, name } = await validateModuleData(strapi, data, existingModule);
+    data.slug = buildModuleSlug(levelRecords, name);
+
+    return next();
+  });
+
   strapi.db.lifecycles.subscribe({
     models: [MODULE_UID],
 
     async beforeCreate(event) {
       const data = event.params?.data || {};
-      const levelRecords = await resolveLevelRecords(strapi, data.level);
+      const { levelRecords, name } = await validateModuleData(strapi, data);
 
-      if (levelRecords.length === 0) {
-        throw new ValidationError('Module must belong to at least one valid academic level.');
-      }
-
-      data.slug = buildModuleSlug(levelRecords, data.name);
+      data.slug = buildModuleSlug(levelRecords, name);
     },
 
     async beforeUpdate(event) {
       const data = event.params?.data || {};
       const existingModule = await getExistingModule(strapi, event.params?.where);
-      const hasIncomingLevels = Object.prototype.hasOwnProperty.call(data, 'level');
-      const incomingLevelRecords = await resolveLevelRecords(strapi, data.level);
-
-      const levelRecords = hasIncomingLevels
-        ? incomingLevelRecords
-        : Array.isArray(existingModule?.level)
-          ? existingModule.level
-          : existingModule?.level
-            ? [existingModule.level]
-            : [];
-      const name = data.name || existingModule?.name;
-
-      if (levelRecords.length === 0 || !name) {
-        throw new ValidationError('Module must include at least one academic level and a name.');
-      }
+      const { levelRecords, name } = await validateModuleData(strapi, data, existingModule);
 
       data.slug = buildModuleSlug(levelRecords, name);
     },

@@ -1,9 +1,10 @@
 // @ts-check
 
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 const CONTENT_MANAGER_SEGMENT = "content-manager";
 const CREATE_SEGMENT = "create";
+const REDIRECT_AFTER_PUBLISH_MODELS = new Set(["api::module.module"]);
 
 /**
  * @typedef {import("@strapi/content-manager/strapi-admin").DocumentActionComponent} DocumentActionComponent
@@ -118,7 +119,6 @@ export const createReturnToListAfterPublishAction = (OriginalPublishAction) => {
   /** @type {DocumentActionComponent} */
   const ReturnToListAfterPublishAction = (props) => {
     const navigate = useNavigate();
-    const { id } = useParams();
     const action = OriginalPublishAction(props);
 
     if (!action) {
@@ -126,7 +126,8 @@ export const createReturnToListAfterPublishAction = (OriginalPublishAction) => {
     }
 
     const shouldRedirect =
-      id === CREATE_SEGMENT && props.collectionType === "collection-types";
+      props.collectionType === "collection-types" &&
+      REDIRECT_AFTER_PUBLISH_MODELS.has(props.model);
 
     return {
       ...action,
