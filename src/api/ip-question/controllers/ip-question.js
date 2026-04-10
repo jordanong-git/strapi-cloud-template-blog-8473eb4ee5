@@ -13,6 +13,10 @@ const { NotFoundError, ValidationError } = errors;
 const QUESTION_UID = 'api::ip-question.ip-question';
 const ASSET_UID = 'api::ip-asset.ip-asset';
 const AUDIT_UID = 'api::ip-audit-log.ip-audit-log';
+const LEVEL_UID = 'api::level.level';
+const MODULE_UID = 'api::module.module';
+const TOPIC_UID = 'api::topic.topic';
+const DIFFICULTY_UID = 'api::difficulty.difficulty';
 
 const DEFAULT_SIGNED_URL_EXPIRY_SECONDS = 3600;
 const MAX_SIGNED_URL_EXPIRY_SECONDS = 3600;
@@ -91,6 +95,30 @@ const parseBooleanEnv = (value, defaultValue) => {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 };
 
+const normalizeComparable = (value) => String(value || '').trim().toLowerCase();
+
+const relationMatchesValue = (record, value, fields) => {
+  const normalizedValue = normalizeComparable(value);
+  if (!normalizedValue) {
+    return false;
+  }
+
+  return fields.some((field) => normalizeComparable(record?.[field]) === normalizedValue);
+};
+
+const dedupeByDocumentOrId = (items) => {
+  const seen = new Set();
+
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const key = item?.documentId ? `document:${item.documentId}` : `id:${item?.id}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+};
+
 const getS3Client = () => {
   const endpoint = (process.env.CMS_STORAGE_ENDPOINT || '').trim();
   const region = (process.env.CMS_STORAGE_REGION || 'auto').trim();
@@ -114,120 +142,20 @@ const getS3Client = () => {
   });
 };
 
-const buildTopicRelationFilter = (topics, ownerId) => ({
-  $and: [
-    {
-      $or: topics.flatMap((topic) => [
-        { slug: { $eqi: topic } },
-        { name: { $eqi: topic } },
-      ]),
-    },
-    {
-      owner_id: ownerId,
-    },
-    {
-      is_active: true,
-    },
-    {
-      publishedAt: {
-        $notNull: true,
-      },
-    },
-  ],
-});
-
-const buildDifficultyRelationFilter = (difficultyValue, ownerId) => {
-  const filters = [
-    { slug: { $eqi: difficultyValue } },
-    { name: { $eqi: difficultyValue } },
-  ];
-  const levelNumber = Number.parseInt(difficultyValue, 10);
-  if (Number.isInteger(levelNumber)) {
-    filters.push({ level_number: levelNumber });
-  }
-
-  return {
-    $and: [
-      {
-        $or: filters,
-      },
-      {
-        owner_id: ownerId,
-      },
-      {
-        is_active: true,
-      },
-      {
-        publishedAt: {
-          $notNull: true,
-        },
-      },
-    ],
-  };
-};
-
-const buildLevelRelationFilter = (levelValue, ownerId) => ({
-  $and: [
-    {
-      $or: [
-        { slug: { $eqi: levelValue } },
-        { code: { $eqi: levelValue } },
-        { name: { $eqi: levelValue } },
-      ],
-    },
-    {
-      owner_id: ownerId,
-    },
-    {
-      is_active: true,
-    },
-    {
-      publishedAt: {
-        $notNull: true,
-      },
-    },
-  ],
-});
-
-const buildModuleRelationFilter = (moduleValue, ownerId) => ({
-  $and: [
-    {
-      $or: [
-        { slug: { $eqi: moduleValue } },
-        { name: { $eqi: moduleValue } },
-      ],
-    },
-    {
-      owner_id: ownerId,
-    },
-    {
-      is_active: true,
-    },
-    {
-      publishedAt: {
-        $notNull: true,
-      },
-    },
-  ],
-});
-
 const buildQuestionFilters = (query) => {
   const ownerId = parseRequiredString(query.ownerId, 'ownerId');
   const topics = parseMultiStringValues(query.topic ?? query.subTopic ?? query.sub_topic, 'topic');
   const module = parseOptionalString(query.module);
   const level = parseRequiredString(query.level, 'level');
-  const difficulty = parseRequiredString(query.difficulty, 'difficulty');
+  const difficulty = parseOptionalString(query.difficulty);
   const questionType = parseOptionalString(
     query.questionType ?? query.question_type ?? query.responseType ?? query.response_type,
   );
 
   const where = {
     owner_id: ownerId,
-    level: buildLevelRelationFilter(level, ownerId),
     asset_type: 'question',
     is_active: true,
-    topics: buildTopicRelationFilter(topics, ownerId),
-    difficulty: buildDifficultyRelationFilter(difficulty, ownerId),
     publishedAt: {
       $notNull: true,
     },
@@ -235,10 +163,6 @@ const buildQuestionFilters = (query) => {
 
   if (questionType) {
     where.question_type = questionType;
-  }
-
-  if (module) {
-    where.module = buildModuleRelationFilter(module, ownerId);
   }
 
   return {
@@ -252,15 +176,61 @@ const buildQuestionFilters = (query) => {
   };
 };
 
+const buildBaseTaxonomyWhere = (ownerId) => ({
+  owner_id: ownerId,
+  is_active: true,
+  publishedAt: {
+    $notNull: true,
+  },
+});
+
+const mapTaxonomyLevel = (level) => ({
+  id: level.id,
+  documentId: level.documentId,
+  name: level.name,
+  code: level.code,
+  slug: level.slug ?? null,
+  description: level.description ?? null,
+});
+
+const mapTaxonomyModule = (module) => ({
+  id: module.id,
+  documentId: module.documentId,
+  name: module.name,
+  slug: module.slug ?? null,
+  description: module.description ?? null,
+  levels: dedupeByDocumentOrId(Array.isArray(module.level) ? module.level : []).map(mapTaxonomyLevel),
+});
+
+const mapTaxonomyTopic = (topic) => ({
+  id: topic.id,
+  documentId: topic.documentId,
+  name: topic.name,
+  slug: topic.slug ?? null,
+  description: topic.description ?? null,
+  module: topic.module
+    ? mapTaxonomyModule({ ...topic.module, level: dedupeByDocumentOrId(topic.module.level ?? []) })
+    : null,
+  levels: dedupeByDocumentOrId(Array.isArray(topic.level) ? topic.level : []).map(mapTaxonomyLevel),
+});
+
+const mapTaxonomyDifficulty = (difficulty) => ({
+  id: difficulty.id,
+  documentId: difficulty.documentId,
+  name: difficulty.name,
+  slug: difficulty.slug ?? null,
+  level_number: Number.isInteger(difficulty.level_number) ? difficulty.level_number : 0,
+  description: difficulty.description ?? null,
+});
+
 const mapTopics = (topics) =>
-  Array.isArray(topics)
-    ? topics
+  dedupeByDocumentOrId(Array.isArray(topics) ? topics : [])
         .map((topic) => topic?.name || topic?.slug || null)
         .filter(Boolean)
-    : [];
+;
 
 const mapModule = (module) => {
-  const modules = Array.isArray(module) ? module : module ? [module] : [];
+  const modules = dedupeByDocumentOrId(Array.isArray(module) ? module : module ? [module] : []);
   const moduleNames = modules.map((item) => item?.name || item?.slug || null).filter(Boolean);
   const moduleSlugs = modules.map((item) => item?.slug || null).filter(Boolean);
 
@@ -282,7 +252,7 @@ const mapModule = (module) => {
 };
 
 const mapLevel = (level) => {
-  const levels = Array.isArray(level) ? level : level ? [level] : [];
+  const levels = dedupeByDocumentOrId(Array.isArray(level) ? level : level ? [level] : []);
   const levelValues = levels.map((item) => item?.code || item?.slug || item?.name || null).filter(Boolean);
   const levelNames = levels.map((item) => item?.name || null).filter(Boolean);
   const levelSlugs = levels.map((item) => item?.slug || null).filter(Boolean);
@@ -412,6 +382,109 @@ const queryQuestions = async (strapi, where) =>
     },
   });
 
+const queryLevels = async (strapi, ownerId) =>
+  strapi.db.query(LEVEL_UID).findMany({
+    where: buildBaseTaxonomyWhere(ownerId),
+    orderBy: { sort_order: 'asc' },
+  });
+
+const queryModules = async (strapi, ownerId) =>
+  strapi.db.query(MODULE_UID).findMany({
+    where: buildBaseTaxonomyWhere(ownerId),
+    orderBy: { sort_order: 'asc' },
+    populate: {
+      level: true,
+    },
+  });
+
+const queryTopics = async (strapi, ownerId) =>
+  strapi.db.query(TOPIC_UID).findMany({
+    where: buildBaseTaxonomyWhere(ownerId),
+    orderBy: { sort_order: 'asc' },
+    populate: {
+      module: {
+        populate: {
+          level: true,
+        },
+      },
+      level: true,
+    },
+  });
+
+const queryDifficulties = async (strapi, ownerId) =>
+  strapi.db.query(DIFFICULTY_UID).findMany({
+    where: buildBaseTaxonomyWhere(ownerId),
+    orderBy: { level_number: 'asc' },
+  });
+
+const filterModules = (modules, levelValue) =>
+  dedupeByDocumentOrId(modules).filter((module) => {
+    if (!levelValue) {
+      return true;
+    }
+    const levels = Array.isArray(module?.level) ? module.level : [];
+    return levels.some((level) => relationMatchesValue(level, levelValue, ['slug', 'code', 'name']));
+  });
+
+const filterTopics = (topics, moduleValue, levelValue) =>
+  dedupeByDocumentOrId(topics).filter((topic) => {
+    const moduleMatches =
+      !moduleValue || relationMatchesValue(topic?.module, moduleValue, ['slug', 'name']);
+    if (!moduleMatches) {
+      return false;
+    }
+    if (!levelValue) {
+      return true;
+    }
+    const levels = Array.isArray(topic?.level) ? topic.level : [];
+    return levels.some((level) => relationMatchesValue(level, levelValue, ['slug', 'code', 'name']));
+  });
+
+const filterDifficulties = (difficulties) => dedupeByDocumentOrId(difficulties);
+
+const filterQuestions = (questions, filters) =>
+  dedupeByDocumentOrId(questions).filter((question) => {
+    const levelRecords = Array.isArray(question?.level) ? question.level : question?.level ? [question.level] : [];
+    const moduleRecords = Array.isArray(question?.module) ? question.module : question?.module ? [question.module] : [];
+    const topicRecords = Array.isArray(question?.topics) ? question.topics : [];
+
+    const matchesLevel = levelRecords.some((level) =>
+      relationMatchesValue(level, filters.level, ['slug', 'code', 'name']));
+    if (!matchesLevel) {
+      return false;
+    }
+
+    const matchesModule =
+      !filters.module ||
+      moduleRecords.some((module) => relationMatchesValue(module, filters.module, ['slug', 'name']));
+    if (!matchesModule) {
+      return false;
+    }
+
+    const matchesTopics = filters.topics.every((topicValue) =>
+      topicRecords.some((topic) => relationMatchesValue(topic, topicValue, ['slug', 'name'])));
+    if (!matchesTopics) {
+      return false;
+    }
+
+    if (filters.difficulty) {
+      const difficulty = question?.difficulty;
+      const normalizedDifficulty = normalizeComparable(filters.difficulty);
+      const difficultyMatches =
+        relationMatchesValue(difficulty, normalizedDifficulty, ['slug', 'name']) ||
+        `${difficulty?.level_number || ''}` === normalizedDifficulty;
+      if (!difficultyMatches) {
+        return false;
+      }
+    }
+
+    if (filters.questionType && normalizeComparable(question?.question_type) !== normalizeComparable(filters.questionType)) {
+      return false;
+    }
+
+    return true;
+  });
+
 const getPublishedAsset = async (strapi, assetId) =>
   strapi.db.query(ASSET_UID).findOne({
     where: {
@@ -435,7 +508,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     const filters = buildQuestionFilters(ctx.query);
 
     try {
-      const questionPool = await queryQuestions(strapi, filters.where);
+      const questionPool = filterQuestions(await queryQuestions(strapi, filters.where), filters);
       const selectedQuestions = shuffle(questionPool).slice(0, count);
 
       await createAuditLog(strapi, 'generate_questions', ctx, {
@@ -480,7 +553,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     const filters = buildQuestionFilters(ctx.query);
 
     try {
-      const questionPool = await queryQuestions(strapi, filters.where);
+      const questionPool = filterQuestions(await queryQuestions(strapi, filters.where), filters);
       const selectedQuestions = shuffle(questionPool).slice(0, count);
 
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
@@ -626,5 +699,52 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
       throw error;
     }
+  },
+
+  async listLevels(ctx) {
+    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const levels = dedupeByDocumentOrId(await queryLevels(strapi, ownerId));
+    ctx.body = {
+      data: levels.map(mapTaxonomyLevel),
+      meta: {
+        returned_count: levels.length,
+      },
+    };
+  },
+
+  async listModules(ctx) {
+    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const level = parseOptionalString(ctx.query.level);
+    const modules = filterModules(await queryModules(strapi, ownerId), level);
+    ctx.body = {
+      data: modules.map(mapTaxonomyModule),
+      meta: {
+        returned_count: modules.length,
+      },
+    };
+  },
+
+  async listTopics(ctx) {
+    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const module = parseOptionalString(ctx.query.module);
+    const level = parseOptionalString(ctx.query.level);
+    const topics = filterTopics(await queryTopics(strapi, ownerId), module, level);
+    ctx.body = {
+      data: topics.map(mapTaxonomyTopic),
+      meta: {
+        returned_count: topics.length,
+      },
+    };
+  },
+
+  async listDifficulties(ctx) {
+    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const difficulties = filterDifficulties(await queryDifficulties(strapi, ownerId));
+    ctx.body = {
+      data: difficulties.map(mapTaxonomyDifficulty),
+      meta: {
+        returned_count: difficulties.length,
+      },
+    };
   },
 }));

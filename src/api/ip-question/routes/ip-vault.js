@@ -29,5 +29,41 @@ module.exports = {
         policies: ['global::ip-vault-auth'],
       },
     },
+    {
+      method: 'GET',
+      path: '/ip-vault/levels',
+      handler: 'ip-question.listLevels',
+      config: {
+        auth: false,
+        policies: ['global::ip-vault-auth'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/ip-vault/modules',
+      handler: 'ip-question.listModules',
+      config: {
+        auth: false,
+        policies: ['global::ip-vault-auth'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/ip-vault/topics',
+      handler: 'ip-question.listTopics',
+      config: {
+        auth: false,
+        policies: ['global::ip-vault-auth'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/ip-vault/difficulties',
+      handler: 'ip-question.listDifficulties',
+      config: {
+        auth: false,
+        policies: ['global::ip-vault-auth'],
+      },
+    },
   ],
 };
