@@ -176,6 +176,17 @@ const buildQuestionFilters = (query) => {
   };
 };
 
+const buildTaxonomyValueWhere = (value, fields) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    $or: fields.map((field) => ({ [field]: normalized })),
+  };
+};
+
 const buildBaseTaxonomyWhere = (ownerId) => ({
   owner_id: ownerId,
   is_active: true,
@@ -382,6 +393,103 @@ const queryQuestions = async (strapi, where) =>
     },
   });
 
+const queryQuestionFilterRelations = async (strapi, filters) => {
+  const levelWhere = buildTaxonomyValueWhere(filters.level, ['slug', 'code', 'name']);
+  const moduleWhere = filters.module ? buildTaxonomyValueWhere(filters.module, ['slug', 'name']) : null;
+  const topicWhere = filters.topics.length > 0
+    ? {
+      $or: filters.topics.flatMap((topicValue) =>
+        ['slug', 'name'].map((field) => ({ [field]: String(topicValue || '').trim() }))),
+    }
+    : null;
+
+  let difficultyWhere = null;
+  if (filters.difficulty) {
+    const difficultyValue = String(filters.difficulty || '').trim();
+    const parsedDifficultyLevel = Number.parseInt(difficultyValue, 10);
+    difficultyWhere = Number.isInteger(parsedDifficultyLevel)
+      ? {
+        $or: [
+          { slug: difficultyValue },
+          { name: difficultyValue },
+          { level_number: parsedDifficultyLevel },
+        ],
+      }
+      : buildTaxonomyValueWhere(difficultyValue, ['slug', 'name']);
+  }
+
+  const [levels, modules, topics, difficulties] = await Promise.all([
+    levelWhere
+      ? strapi.db.query(LEVEL_UID).findMany({
+        where: {
+          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...levelWhere,
+        },
+      })
+      : Promise.resolve([]),
+    moduleWhere
+      ? strapi.db.query(MODULE_UID).findMany({
+        where: {
+          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...moduleWhere,
+        },
+      })
+      : Promise.resolve([]),
+    topicWhere
+      ? strapi.db.query(TOPIC_UID).findMany({
+        where: {
+          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...topicWhere,
+        },
+      })
+      : Promise.resolve([]),
+    difficultyWhere
+      ? strapi.db.query(DIFFICULTY_UID).findMany({
+        where: {
+          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...difficultyWhere,
+        },
+      })
+      : Promise.resolve([]),
+  ]);
+
+  return {
+    levelIds: dedupeByDocumentOrId(levels).map((item) => item.id),
+    moduleIds: dedupeByDocumentOrId(modules).map((item) => item.id),
+    topicIds: dedupeByDocumentOrId(topics).map((item) => item.id),
+    difficultyIds: dedupeByDocumentOrId(difficulties).map((item) => item.id),
+  };
+};
+
+const buildQuestionQueryWhere = (filters, relationIds) => {
+  const where = { ...filters.where };
+  if (relationIds.levelIds.length > 0) {
+    where.level = { id: { $in: relationIds.levelIds } };
+  }
+  if (filters.module) {
+    if (relationIds.moduleIds.length === 0) {
+      where.id = { $in: [] };
+      return where;
+    }
+    where.module = { id: { $in: relationIds.moduleIds } };
+  }
+  if (filters.topics.length > 0) {
+    if (relationIds.topicIds.length === 0) {
+      where.id = { $in: [] };
+      return where;
+    }
+    where.topics = { id: { $in: relationIds.topicIds } };
+  }
+  if (filters.difficulty) {
+    if (relationIds.difficultyIds.length === 0) {
+      where.id = { $in: [] };
+      return where;
+    }
+    where.difficulty = { id: { $in: relationIds.difficultyIds } };
+  }
+  return where;
+};
+
 const queryLevels = async (strapi, ownerId) =>
   strapi.db.query(LEVEL_UID).findMany({
     where: buildBaseTaxonomyWhere(ownerId),
@@ -508,7 +616,11 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     const filters = buildQuestionFilters(ctx.query);
 
     try {
-      const questionPool = filterQuestions(await queryQuestions(strapi, filters.where), filters);
+      const relationIds = await queryQuestionFilterRelations(strapi, filters);
+      const questionPool = filterQuestions(
+        await queryQuestions(strapi, buildQuestionQueryWhere(filters, relationIds)),
+        filters,
+      );
       const selectedQuestions = shuffle(questionPool).slice(0, count);
 
       await createAuditLog(strapi, 'generate_questions', ctx, {
@@ -553,7 +665,11 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
     const filters = buildQuestionFilters(ctx.query);
 
     try {
-      const questionPool = filterQuestions(await queryQuestions(strapi, filters.where), filters);
+      const relationIds = await queryQuestionFilterRelations(strapi, filters);
+      const questionPool = filterQuestions(
+        await queryQuestions(strapi, buildQuestionQueryWhere(filters, relationIds)),
+        filters,
+      );
       const selectedQuestions = shuffle(questionPool).slice(0, count);
 
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
