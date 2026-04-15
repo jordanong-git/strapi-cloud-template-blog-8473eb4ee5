@@ -1,0 +1,242 @@
+diff --git a/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.js b/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.js
+index 30620e9..47b25ca 100644
+--- a/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.js
++++ b/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.js
+@@ -17,7 +17,7 @@ var plugin = require('../../constants/plugin.js');
+ var DocumentRBAC = require('../../features/DocumentRBAC.js');
+ var useDocument = require('../../hooks/useDocument.js');
+ var useDocumentLayout = require('../../hooks/useDocumentLayout.js');
+ var usePrev = require('../../hooks/usePrev.js');
+ var documents = require('../../services/documents.js');
+ var api = require('../../utils/api.js');
+ var translations = require('../../utils/translations.js');
+@@ -54,6 +53,36 @@ const { INJECT_COLUMN_IN_TABLE } = hooks.HOOKS;
+  * -----------------------------------------------------------------------------------------------*/ const LayoutsHeaderCustom = styledComponents.styled(strapiAdmin.Layouts.Header)`
+   overflow-wrap: anywhere;
+ `;
++const LIST_VIEW_COLUMNS_STORAGE_PREFIX = 'content-manager:list-columns';
++const buildListViewColumnsStorageKey = (backendUrl, userId, model)=>`${LIST_VIEW_COLUMNS_STORAGE_PREFIX}:${backendUrl}:${userId ?? 'anonymous'}:${model}`;
++const readStoredListViewHeaders = ({ storageKey, schema, list })=>{
++    if (!storageKey || !schema?.attributes || Object.keys(list.metadatas ?? {}).length === 0) {
++        return null;
++    }
++    try {
++        const rawValue = window.localStorage.getItem(storageKey);
++        if (rawValue === null) {
++            return null;
++        }
++        const parsedValue = JSON.parse(rawValue);
++        if (!Array.isArray(parsedValue)) {
++            window.localStorage.removeItem(storageKey);
++            return null;
++        }
++        const headerNames = [
++            ...new Set(parsedValue.filter((value)=>typeof value === 'string'))
++        ];
++        const storedHeaders = useDocumentLayout.convertListLayoutToFieldLayouts(headerNames, schema.attributes, list.metadatas);
++        if (headerNames.length > 0 && storedHeaders.length === 0) {
++            window.localStorage.removeItem(storageKey);
++            return null;
++        }
++        return storedHeaders;
++    } catch  {
++        window.localStorage.removeItem(storageKey);
++        return null;
++    }
++};
+ const ListViewPage = ()=>{
+     const { trackUsage } = strapiAdmin.useTracking();
+     const navigate = reactRouterDom.useNavigate();
+@@ -61,23 +90,57 @@ const ListViewPage = ()=>{
+     const { toggleNotification } = strapiAdmin.useNotification();
+     const { _unstableFormatAPIError: formatAPIError } = strapiAdmin.useAPIErrorHandler(translations.getTranslation);
+     const { collectionType, model, schema } = useDocument.useDoc();
++    const user = strapiAdmin.useAuth('ListViewPage', (state)=>state.user);
+     const { list } = useDocumentLayout.useDocumentLayout(model);
+-    const [displayedHeaders, setDisplayedHeaders] = React__namespace.useState([]);
+-    const listLayout = usePrev.usePrev(list.layout);
+-    React__namespace.useEffect(()=>{
+-        /**
+-     * ONLY update the displayedHeaders if the document
+-     * layout has actually changed in value.
+-     */ if (!isEqual(listLayout, list.layout)) {
+-            setDisplayedHeaders(list.layout);
++    const storageKey = React__namespace.useMemo(()=>{
++        const backendUrl = window.strapi?.backendURL ?? window.location.origin;
++        return buildListViewColumnsStorageKey(backendUrl, user?.id, model);
++    }, [
++        model,
++        user?.id
++    ]);
++    const isListLayoutReady = list.layout.length > 0 || Object.keys(list.metadatas ?? {}).length > 0;
++    const [displayedHeaders, setDisplayedHeaders] = React__namespace.useState(list.layout);
++    React__namespace.useLayoutEffect(()=>{
++        if (!isListLayoutReady) {
++            return;
+         }
++        const storedHeaders = readStoredListViewHeaders({
++            storageKey,
++            schema,
++            list
++        });
++        const nextHeaders = storedHeaders ?? list.layout;
++        setDisplayedHeaders((prevHeaders)=>isEqual(prevHeaders, nextHeaders) ? prevHeaders : nextHeaders);
+     }, [
++        isListLayoutReady,
+         list.layout,
+-        listLayout
++        list.metadatas,
++        schema?.attributes,
++        storageKey
+     ]);
+     const handleSetHeaders = (headers)=>{
+-        setDisplayedHeaders(useDocumentLayout.convertListLayoutToFieldLayouts(headers, schema.attributes, list.metadatas));
++        setDisplayedHeaders(useDocumentLayout.convertListLayoutToFieldLayouts(headers, schema?.attributes ?? {}, list.metadatas));
+     };
++    React__namespace.useEffect(()=>{
++        if (!isListLayoutReady) {
++            return;
++        }
++        try {
++            const currentHeaderNames = displayedHeaders.map((header)=>header.name);
++            const defaultHeaderNames = list.layout.map((header)=>header.name);
++            if (isEqual(currentHeaderNames, defaultHeaderNames)) {
++                window.localStorage.removeItem(storageKey);
++                return;
++            }
++            window.localStorage.setItem(storageKey, JSON.stringify(currentHeaderNames));
++        } catch  {}
++    }, [
++        displayedHeaders,
++        isListLayoutReady,
++        list.layout,
++        storageKey
++    ]);
+     const [{ query }] = strapiAdmin.useQueryParams({
+         page: '1',
+         pageSize: list.settings.pageSize.toString(),
+diff --git a/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.mjs b/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.mjs
+index 23ffb4a..9154363 100644
+--- a/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.mjs
++++ b/node_modules/@strapi/content-manager/dist/admin/pages/ListView/ListViewPage.mjs
+@@ -1,6 +1,6 @@
+ import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+ import * as React from 'react';
+-import { Layouts, useTracking, useNotification, useAPIErrorHandler, useQueryParams, useStrapiApp, Page, tours, BackButton, SearchInput, Table, Pagination, useTable, useRBAC } from '@strapi/admin/strapi-admin';
++import { Layouts, useTracking, useNotification, useAPIErrorHandler, useQueryParams, useStrapiApp, Page, tours, BackButton, SearchInput, Table, Pagination, useTable, useRBAC, useAuth } from '@strapi/admin/strapi-admin';
+ import { Box, EmptyStateLayout, Flex, Typography, Button } from '@strapi/design-system';
+ import { Plus } from '@strapi/icons';
+ import { EmptyDocuments } from '@strapi/icons/symbols';
+@@ -15,7 +15,7 @@ import { PERMISSIONS } from '../../constants/plugin.mjs';
+ import { useDocumentRBAC, DocumentRBAC } from '../../features/DocumentRBAC.mjs';
+ import { useDoc } from '../../hooks/useDocument.mjs';
+ import { useDocumentLayout, convertListLayoutToFieldLayouts } from '../../hooks/useDocumentLayout.mjs';
+ import { usePrev } from '../../hooks/usePrev.mjs';
+ import { useGetAllDocumentsQuery } from '../../services/documents.mjs';
+ import { buildValidParams } from '../../utils/api.mjs';
+ import { getTranslation } from '../../utils/translations.mjs';
+@@ -33,6 +32,36 @@ const { INJECT_COLUMN_IN_TABLE } = HOOKS;
+  * -----------------------------------------------------------------------------------------------*/ const LayoutsHeaderCustom = styled(Layouts.Header)`
+   overflow-wrap: anywhere;
+ `;
++const LIST_VIEW_COLUMNS_STORAGE_PREFIX = 'content-manager:list-columns';
++const buildListViewColumnsStorageKey = (backendUrl, userId, model)=>`${LIST_VIEW_COLUMNS_STORAGE_PREFIX}:${backendUrl}:${userId ?? 'anonymous'}:${model}`;
++const readStoredListViewHeaders = ({ storageKey, schema, list })=>{
++    if (!storageKey || !schema?.attributes || Object.keys(list.metadatas ?? {}).length === 0) {
++        return null;
++    }
++    try {
++        const rawValue = window.localStorage.getItem(storageKey);
++        if (rawValue === null) {
++            return null;
++        }
++        const parsedValue = JSON.parse(rawValue);
++        if (!Array.isArray(parsedValue)) {
++            window.localStorage.removeItem(storageKey);
++            return null;
++        }
++        const headerNames = [
++            ...new Set(parsedValue.filter((value)=>typeof value === 'string'))
++        ];
++        const storedHeaders = convertListLayoutToFieldLayouts(headerNames, schema.attributes, list.metadatas);
++        if (headerNames.length > 0 && storedHeaders.length === 0) {
++            window.localStorage.removeItem(storageKey);
++            return null;
++        }
++        return storedHeaders;
++    } catch  {
++        window.localStorage.removeItem(storageKey);
++        return null;
++    }
++};
+ const ListViewPage = ()=>{
+     const { trackUsage } = useTracking();
+     const navigate = useNavigate();
+@@ -40,23 +69,57 @@ const ListViewPage = ()=>{
+     const { toggleNotification } = useNotification();
+     const { _unstableFormatAPIError: formatAPIError } = useAPIErrorHandler(getTranslation);
+     const { collectionType, model, schema } = useDoc();
++    const user = useAuth('ListViewPage', (state)=>state.user);
+     const { list } = useDocumentLayout(model);
+-    const [displayedHeaders, setDisplayedHeaders] = React.useState([]);
+-    const listLayout = usePrev(list.layout);
+-    React.useEffect(()=>{
+-        /**
+-     * ONLY update the displayedHeaders if the document
+-     * layout has actually changed in value.
+-     */ if (!isEqual(listLayout, list.layout)) {
+-            setDisplayedHeaders(list.layout);
++    const storageKey = React.useMemo(()=>{
++        const backendUrl = window.strapi?.backendURL ?? window.location.origin;
++        return buildListViewColumnsStorageKey(backendUrl, user?.id, model);
++    }, [
++        model,
++        user?.id
++    ]);
++    const isListLayoutReady = list.layout.length > 0 || Object.keys(list.metadatas ?? {}).length > 0;
++    const [displayedHeaders, setDisplayedHeaders] = React.useState(list.layout);
++    React.useLayoutEffect(()=>{
++        if (!isListLayoutReady) {
++            return;
+         }
++        const storedHeaders = readStoredListViewHeaders({
++            storageKey,
++            schema,
++            list
++        });
++        const nextHeaders = storedHeaders ?? list.layout;
++        setDisplayedHeaders((prevHeaders)=>isEqual(prevHeaders, nextHeaders) ? prevHeaders : nextHeaders);
+     }, [
++        isListLayoutReady,
+         list.layout,
+-        listLayout
++        list.metadatas,
++        schema?.attributes,
++        storageKey
+     ]);
+     const handleSetHeaders = (headers)=>{
+-        setDisplayedHeaders(convertListLayoutToFieldLayouts(headers, schema.attributes, list.metadatas));
++        setDisplayedHeaders(convertListLayoutToFieldLayouts(headers, schema?.attributes ?? {}, list.metadatas));
+     };
++    React.useEffect(()=>{
++        if (!isListLayoutReady) {
++            return;
++        }
++        try {
++            const currentHeaderNames = displayedHeaders.map((header)=>header.name);
++            const defaultHeaderNames = list.layout.map((header)=>header.name);
++            if (isEqual(currentHeaderNames, defaultHeaderNames)) {
++                window.localStorage.removeItem(storageKey);
++                return;
++            }
++            window.localStorage.setItem(storageKey, JSON.stringify(currentHeaderNames));
++        } catch  {}
++    }, [
++        displayedHeaders,
++        isListLayoutReady,
++        list.layout,
++        storageKey
++    ]);
+     const [{ query }] = useQueryParams({
+         page: '1',
+         pageSize: list.settings.pageSize.toString(),

@@ -1,0 +1,218 @@
+diff --git a/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.js b/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.js
+index 9310756..f13df22 100644
+--- a/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.js
++++ b/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.js
+@@ -35,10 +35,7 @@ var React__namespace = /*#__PURE__*/_interopNamespaceDefault(React);
+ var yup__namespace = /*#__PURE__*/_interopNamespaceDefault(yup);
+ 
+ const LOGIN_SCHEMA = yup__namespace.object().shape({
+-    email: yup__namespace.string().nullable().email({
+-        id: translatedErrors.translatedErrors.email.id,
+-        defaultMessage: 'Not a valid email'
+-    }).required(translatedErrors.translatedErrors.required),
++    identifier: yup__namespace.string().trim().required(translatedErrors.translatedErrors.required).nullable(),
+     password: yup__namespace.string().required(translatedErrors.translatedErrors.required).nullable(),
+     rememberMe: yup__namespace.bool().nullable()
+ });
+@@ -113,7 +110,7 @@ const Login = ({ children })=>{
+                         /*#__PURE__*/ jsxRuntime.jsx(Form.Form, {
+                             method: "PUT",
+                             initialValues: {
+-                                email: '',
++                                identifier: '',
+                                 password: '',
+                                 rememberMe: false
+                             },
+@@ -129,16 +126,16 @@ const Login = ({ children })=>{
+                                     [
+                                         {
+                                             label: formatMessage({
+-                                                id: 'Auth.form.email.label',
+-                                                defaultMessage: 'Email'
++                                                id: 'Auth.form.identifier.label',
++                                                defaultMessage: 'Email or username'
+                                             }),
+-                                            name: 'email',
++                                            name: 'identifier',
+                                             placeholder: formatMessage({
+-                                                id: 'Auth.form.email.placeholder',
+-                                                defaultMessage: 'kai@doe.com'
++                                                id: 'Auth.form.identifier.placeholder',
++                                                defaultMessage: 'kai@doe.com or MNWERNYIH'
+                                             }),
+                                             required: true,
+-                                            type: 'email'
++                                            type: 'string'
+                                         },
+                                         {
+                                             label: formatMessage({
+diff --git a/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.mjs b/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.mjs
+index bd78760..43aeee8 100644
+--- a/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.mjs
++++ b/node_modules/@strapi/admin/dist/admin/admin/src/pages/Auth/components/Login.mjs
+@@ -13,10 +13,7 @@ import { UnauthenticatedLayout, LayoutContent, Column } from '../../../layouts/U
+ import { translatedErrors as errorsTrads } from '../../../utils/translatedErrors.mjs';
+ 
+ const LOGIN_SCHEMA = yup.object().shape({
+-    email: yup.string().nullable().email({
+-        id: errorsTrads.email.id,
+-        defaultMessage: 'Not a valid email'
+-    }).required(errorsTrads.required),
++    identifier: yup.string().trim().required(errorsTrads.required).nullable(),
+     password: yup.string().required(errorsTrads.required).nullable(),
+     rememberMe: yup.bool().nullable()
+ });
+@@ -91,7 +88,7 @@ const Login = ({ children })=>{
+                         /*#__PURE__*/ jsx(Form, {
+                             method: "PUT",
+                             initialValues: {
+-                                email: '',
++                                identifier: '',
+                                 password: '',
+                                 rememberMe: false
+                             },
+@@ -107,16 +104,16 @@ const Login = ({ children })=>{
+                                     [
+                                         {
+                                             label: formatMessage({
+-                                                id: 'Auth.form.email.label',
+-                                                defaultMessage: 'Email'
++                                                id: 'Auth.form.identifier.label',
++                                                defaultMessage: 'Email or username'
+                                             }),
+-                                            name: 'email',
++                                            name: 'identifier',
+                                             placeholder: formatMessage({
+-                                                id: 'Auth.form.email.placeholder',
+-                                                defaultMessage: 'kai@doe.com'
++                                                id: 'Auth.form.identifier.placeholder',
++                                                defaultMessage: 'kai@doe.com or MNWERNYIH'
+                                             }),
+                                             required: true,
+-                                            type: 'email'
++                                            type: 'string'
+                                         },
+                                         {
+                                             label: formatMessage({
+diff --git a/node_modules/@strapi/admin/dist/server/server/src/services/auth.js b/node_modules/@strapi/admin/dist/server/server/src/services/auth.js
+index 2f773d3..73898df 100644
+--- a/node_modules/@strapi/admin/dist/server/server/src/services/auth.js
++++ b/node_modules/@strapi/admin/dist/server/server/src/services/auth.js
+@@ -18,14 +18,33 @@ const { ApplicationError } = utils.errors;
+  * @param hash
+  * @returns {Promise<boolean>} is the password valid
+  */ const validatePassword = (password, hash)=>bcrypt.compare(password, hash);
++const buildIdentifierVariants = (identifier)=>{
++    const normalizedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
++    const variants = [
++        normalizedIdentifier,
++        normalizedIdentifier.toLowerCase(),
++        normalizedIdentifier.toUpperCase()
++    ].filter(Boolean);
++    return [
++        ...new Set(variants)
++    ];
++};
+ /**
+  * Check login credentials
+- * @param email the users email address
++ * @param identifier the user's email address or username
+  * @param password the users password
+- */ const checkCredentials = async ({ email, password })=>{
++ */ const checkCredentials = async ({ identifier, password })=>{
++    const identifierVariants = buildIdentifierVariants(identifier);
+     const user = await strapi.db.query('admin::user').findOne({
+         where: {
+-            email
++            $or: [
++                {
++                    email: identifierVariants.find((value)=>value.includes('@')) ?? ''
++                },
++                ...identifierVariants.map((value)=>({
++                        username: value
++                    }))
++            ]
+         }
+     });
+     if (!user || !user.password) {
+diff --git a/node_modules/@strapi/admin/dist/server/server/src/services/auth.mjs b/node_modules/@strapi/admin/dist/server/server/src/services/auth.mjs
+index 521208b..e591764 100644
+--- a/node_modules/@strapi/admin/dist/server/server/src/services/auth.mjs
++++ b/node_modules/@strapi/admin/dist/server/server/src/services/auth.mjs
+@@ -16,14 +16,33 @@ const { ApplicationError } = errors;
+  * @param hash
+  * @returns {Promise<boolean>} is the password valid
+  */ const validatePassword = (password, hash)=>bcrypt.compare(password, hash);
++const buildIdentifierVariants = (identifier)=>{
++    const normalizedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
++    const variants = [
++        normalizedIdentifier,
++        normalizedIdentifier.toLowerCase(),
++        normalizedIdentifier.toUpperCase()
++    ].filter(Boolean);
++    return [
++        ...new Set(variants)
++    ];
++};
+ /**
+  * Check login credentials
+- * @param email the users email address
++ * @param identifier the user's email address or username
+  * @param password the users password
+- */ const checkCredentials = async ({ email, password })=>{
++ */ const checkCredentials = async ({ identifier, password })=>{
++    const identifierVariants = buildIdentifierVariants(identifier);
+     const user = await strapi.db.query('admin::user').findOne({
+         where: {
+-            email
++            $or: [
++                {
++                    email: identifierVariants.find((value)=>value.includes('@')) ?? ''
++                },
++                ...identifierVariants.map((value)=>({
++                        username: value
++                    }))
++            ]
+         }
+     });
+     if (!user || !user.password) {
+diff --git a/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.js b/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.js
+index 0e3768f..ff8c629 100644
+--- a/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.js
++++ b/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.js
+@@ -6,12 +6,12 @@ var index = require('../../utils/index.js');
+ 
+ const createLocalStrategy = (strapi, middleware)=>{
+     return new passportLocal.Strategy({
+-        usernameField: 'email',
++        usernameField: 'identifier',
+         passwordField: 'password',
+         session: false
+-    }, (email, password, done)=>{
++    }, (identifier, password, done)=>{
+         return index.getService('auth').checkCredentials({
+-            email: fp.toLower(email),
++            identifier,
+             password
+         }).then(async ([error, user, message])=>{
+             if (middleware) {
+diff --git a/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.mjs b/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.mjs
+index 46cbfbe..ec63758 100644
+--- a/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.mjs
++++ b/node_modules/@strapi/admin/dist/server/server/src/services/passport/local-strategy.mjs
+@@ -4,12 +4,12 @@ import { getService } from '../../utils/index.mjs';
+ 
+ const createLocalStrategy = (strapi, middleware)=>{
+     return new Strategy({
+-        usernameField: 'email',
++        usernameField: 'identifier',
+         passwordField: 'password',
+         session: false
+-    }, (email, password, done)=>{
++    }, (identifier, password, done)=>{
+         return getService('auth').checkCredentials({
+-            email: toLower(email),
++            identifier,
+             password
+         }).then(async ([error, user, message])=>{
+             if (middleware) {
