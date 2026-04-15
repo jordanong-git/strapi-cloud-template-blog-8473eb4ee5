@@ -113,6 +113,24 @@ async function updateContentManagerConfiguration(key, mutator) {
     .update({ value: JSON.stringify(nextValue) });
 }
 
+function appendUpdatedAtToListLayout(configuration) {
+  const currentList = configuration?.layouts?.list;
+
+  if (!Array.isArray(currentList) || currentList.length === 0) {
+    return configuration;
+  }
+
+  const nextList = [...currentList.filter((field) => field !== 'updatedAt'), 'updatedAt'];
+
+  return {
+    ...configuration,
+    layouts: {
+      ...(configuration.layouts || {}),
+      list: nextList,
+    },
+  };
+}
+
 function mergeQuestionFieldMetadata(metadata, fieldName, editOverrides, listOverrides = {}) {
   const currentMetadata = metadata[fieldName] || {};
 
@@ -349,7 +367,7 @@ async function updateTopicContentManagerConfiguration() {
       sortable: true,
     });
 
-    nextConfiguration.layouts.list = ['id', 'name', 'module', 'level', 'slug'];
+    nextConfiguration.layouts.list = ['id', 'name', 'module', 'level', 'updatedAt'];
     nextConfiguration.layouts.edit = [
       [{ name: 'name', size: 6 }, { name: 'slug', size: 6 }],
       [{ name: 'module', size: 6 }, { name: 'level', size: 6 }],
@@ -360,6 +378,21 @@ async function updateTopicContentManagerConfiguration() {
 
     return nextConfiguration;
   });
+}
+
+async function ensureUpdatedAtInAllCollectionTypeListLayouts() {
+  const collectionTypeUids = Object.entries(strapi.contentTypes)
+    .filter(([uid, schema]) => uid.startsWith('api::') && schema.kind === 'collectionType')
+    .map(([uid]) => uid);
+
+  await Promise.all(
+    collectionTypeUids.map((uid) =>
+      updateContentManagerConfiguration(
+        `plugin_content_manager_configuration_content_types::${uid}`,
+        appendUpdatedAtToListLayout
+      )
+    )
+  );
 }
 
 async function isFirstRun() {
@@ -572,4 +605,5 @@ module.exports = async () => {
   await updateIpQuestionContentManagerConfiguration();
   await updateModuleContentManagerConfiguration();
   await updateTopicContentManagerConfiguration();
+  await ensureUpdatedAtInAllCollectionTypeListLayouts();
 };
