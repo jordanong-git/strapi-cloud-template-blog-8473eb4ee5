@@ -1,9 +1,12 @@
 // @ts-check
 
+import { Earth } from "@strapi/icons";
+
 import { createReturnToListAfterPublishAction } from "./components/ReturnToListAfterPublishAction";
 
 const MCQ_CHOICES_CUSTOM_FIELD_NAME = "mcq-choices";
 const MATH_TEXT_CUSTOM_FIELD_NAME = "math-text";
+const LMS_SHORTCUT_PATH = "lms-shortcut";
 
 /**
  * @typedef {import("@strapi/content-manager/strapi-admin").DocumentActionComponent} DocumentActionComponent
@@ -12,6 +15,7 @@ const MATH_TEXT_CUSTOM_FIELD_NAME = "math-text";
 /**
  * @typedef {{
  *   customFields: { register: (config: Record<string, unknown>) => void },
+ *   addMenuLink?: (config: Record<string, unknown>) => void,
  *   getPlugin: (pluginId: string) => {
  *     apis?: {
  *       addDocumentAction?: (reducer: (actions: DocumentActionComponent[]) => DocumentActionComponent[]) => void
@@ -109,6 +113,16 @@ const register = (app) => {
     components: {
       Input: async () => import("./components/MathPromptInput.jsx"),
     },
+  });
+
+  app.addMenuLink?.({
+    to: LMS_SHORTCUT_PATH,
+    icon: Earth,
+    intlLabel: {
+      id: "ip-vault.lms-shortcut.menu-label",
+      defaultMessage: "LMS",
+    },
+    Component: () => import("./pages/LmsShortcutPage.jsx"),
   });
 };
 

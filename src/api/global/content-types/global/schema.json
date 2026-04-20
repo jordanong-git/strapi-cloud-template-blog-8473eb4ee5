@@ -26,6 +26,10 @@
       "type": "text",
       "required": true
     },
+    "lmsUrl": {
+      "type": "string",
+      "default": "https://app.realms.oljmedia.com/"
+    },
     "defaultSeo": {
       "type": "component",
       "repeatable": false,
