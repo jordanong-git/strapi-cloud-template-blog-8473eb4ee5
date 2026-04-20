@@ -695,7 +695,9 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     module: Schema.Attribute.Relation<'manyToMany', 'api::module.module'> &
       Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
-    prompt: Schema.Attribute.Text & Schema.Attribute.Required;
+    prompt: Schema.Attribute.Text &
+      Schema.Attribute.Required &
+      Schema.Attribute.CustomField<'global::math-text'>;
     publishedAt: Schema.Attribute.DateTime;
     question_type: Schema.Attribute.Enumeration<['mcq', 'saq', 'laq']> &
       Schema.Attribute.Required &

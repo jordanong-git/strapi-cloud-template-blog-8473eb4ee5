@@ -9,11 +9,12 @@ import {
   Flex,
   IconButton,
   NumberInput,
-  TextInput,
   Typography,
 } from "@strapi/design-system";
 import { Plus, Trash } from "@strapi/icons";
 import { useField } from "@strapi/admin/strapi-admin";
+
+import MathTextEditor from "./MathTextEditor.jsx";
 
 const EMPTY_CHOICE = {
   choice_text: "",
@@ -168,16 +169,15 @@ const McqChoicesInput = React.forwardRef(
                       </IconButton>
                     </Flex>
 
-                    <TextInput
+                    <MathTextEditor
                       ref={index === 0 ? ref : undefined}
                       label="Choice text"
                       name={`${name}.${index}.choice_text`}
-                      onChange={(event) =>
-                        updateChoice(index, "choice_text", event.target.value)
-                      }
+                      onChange={(nextValue) => updateChoice(index, "choice_text", nextValue)}
                       value={choice.choice_text}
                       disabled={disabled}
                       placeholder="Enter the option shown to the learner"
+                      hint="You can insert fractions and basic math symbols here too."
                     />
 
                     <Flex gap={4} alignItems="end" wrap="wrap">

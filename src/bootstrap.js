@@ -179,7 +179,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'prompt', {
       label: 'Question Text',
-      description: 'The actual question shown to the learner. Raw LaTeX is allowed here.',
+      description: 'The actual question shown to the learner. Use the math toolbar for fractions and symbols, or type raw LaTeX directly.',
       placeholder: 'Example: What is \\\\( \\\\frac{1}{2} + \\\\frac{1}{4} \\\\)?',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'module', {
@@ -212,7 +212,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'choices', {
       label: 'Choices (MCQ only)',
       description:
-        'Fill this only for MCQ. Use the editor below to add answer options, mark the correct one, and control display order. Leave empty for SAQ and LAQ.',
+        'Fill this only for MCQ. Use the editor below to add answer options, insert fractions or math symbols, mark the correct one, and control display order. Leave empty for SAQ and LAQ.',
       placeholder: '',
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'accepted_answers', {
@@ -242,7 +242,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'contains_latex', {
       label: 'Contains LaTeX',
-      description: 'Turn this on if the question text or answers include raw LaTeX markup.',
+      description: 'Auto-detected from saved question text and answers when LaTeX markup is present.',
       placeholder: '',
     });
 

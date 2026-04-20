@@ -2,7 +2,8 @@
 
 import { createReturnToListAfterPublishAction } from "./components/ReturnToListAfterPublishAction";
 
-const MCQ_CHOICES_CUSTOM_FIELD_UID = "global::mcq-choices";
+const MCQ_CHOICES_CUSTOM_FIELD_NAME = "mcq-choices";
+const MATH_TEXT_CUSTOM_FIELD_NAME = "math-text";
 
 /**
  * @typedef {import("@strapi/content-manager/strapi-admin").DocumentActionComponent} DocumentActionComponent
@@ -79,7 +80,7 @@ const bootstrap = (app) => {
  */
 const register = (app) => {
   app.customFields.register({
-    name: "mcq-choices",
+    name: MCQ_CHOICES_CUSTOM_FIELD_NAME,
     type: "json",
     intlLabel: {
       id: "ip-vault.custom-fields.mcq-choices.label",
@@ -91,6 +92,22 @@ const register = (app) => {
     },
     components: {
       Input: async () => import("./components/McqChoicesInput.jsx"),
+    },
+  });
+
+  app.customFields.register({
+    name: MATH_TEXT_CUSTOM_FIELD_NAME,
+    type: "text",
+    intlLabel: {
+      id: "ip-vault.custom-fields.math-text.label",
+      defaultMessage: "Math Text",
+    },
+    intlDescription: {
+      id: "ip-vault.custom-fields.math-text.description",
+      defaultMessage: "Text editor with a lightweight math symbol toolbar.",
+    },
+    components: {
+      Input: async () => import("./components/MathPromptInput.jsx"),
     },
   });
 };

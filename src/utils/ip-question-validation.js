@@ -10,10 +10,44 @@ const MODULE_UID = 'api::module.module';
 const TOPIC_UID = 'api::topic.topic';
 const QUESTION_UID = 'api::ip-question.ip-question';
 const VALID_QUESTION_TYPES = new Set(['mcq', 'saq', 'laq']);
+const LATEX_PATTERN =
+  /(\\(?:frac|sqrt|times|div|pm|pi|theta|le|ge|left|right|cdot|sum|int|alpha|beta|gamma)|\\[\(\)\[\]]|\$\$)/;
 
 const normalizeQuestionType = (value) => String(value || '').trim().toLowerCase();
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
+
+const valueContainsLatex = (value) => {
+  if (typeof value === 'string') {
+    return LATEX_PATTERN.test(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(valueContainsLatex);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(valueContainsLatex);
+  }
+
+  return false;
+};
+
+const deriveContainsLatex = (data) =>
+  valueContainsLatex(data?.prompt) ||
+  valueContainsLatex(data?.choices) ||
+  valueContainsLatex(data?.accepted_answers) ||
+  valueContainsLatex(data?.sample_answer) ||
+  valueContainsLatex(data?.marking_rubric) ||
+  valueContainsLatex(data?.explanation);
+
+const applyDerivedLatexFlag = (data) => {
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+
+  data.contains_latex = deriveContainsLatex(data);
+};
 
 const validateMcqChoices = (choices) => {
   if (!Array.isArray(choices) || choices.length < 2) {
@@ -362,6 +396,7 @@ const registerQuestionValidationLifecycles = (strapi) => {
     models: [QUESTION_UID],
 
     async beforeCreate(event) {
+      applyDerivedLatexFlag(event.params?.data);
       validateQuestionPayload(event.params?.data);
       await validateModuleTopicConsistency(strapi, event.params?.data);
     },
@@ -369,6 +404,7 @@ const registerQuestionValidationLifecycles = (strapi) => {
     async beforeCreateMany(event) {
       const items = Array.isArray(event.params?.data) ? event.params.data : [];
       for (const item of items) {
+        applyDerivedLatexFlag(item);
         validateQuestionPayload(item);
         await validateModuleTopicConsistency(strapi, item);
       }
@@ -410,6 +446,8 @@ const registerQuestionValidationLifecycles = (strapi) => {
       });
 
       const mergedPayload = mergeExistingWithIncoming(existingRecord || {}, event.params?.data || {});
+      applyDerivedLatexFlag(mergedPayload);
+      applyDerivedLatexFlag(event.params?.data);
       validateQuestionPayload(mergedPayload);
       await validateModuleTopicConsistency(strapi, mergedPayload);
     },

@@ -24,6 +24,7 @@
     },
     "prompt": {
       "type": "text",
+      "customField": "global::math-text",
       "required": true
     },
     "module": {
