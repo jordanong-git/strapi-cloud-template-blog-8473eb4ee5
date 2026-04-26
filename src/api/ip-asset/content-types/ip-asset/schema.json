@@ -16,6 +16,13 @@
       "type": "string",
       "required": true
     },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "assets",
+      "required": true
+    },
     "description": {
       "type": "text"
     },
@@ -85,6 +92,9 @@
     "attributes": {
       "owner_id": {
         "hidden": true
+      },
+      "organization": {
+        "mainField": "name"
       }
     }
   }

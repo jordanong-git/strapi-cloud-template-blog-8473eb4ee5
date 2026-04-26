@@ -22,6 +22,13 @@
       "type": "string",
       "required": true
     },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "questions",
+      "required": true
+    },
     "prompt": {
       "type": "text",
       "customField": "global::math-text",
@@ -107,6 +114,9 @@
       },
       "asset_type": {
         "hidden": true
+      },
+      "organization": {
+        "mainField": "name"
       }
     }
   }

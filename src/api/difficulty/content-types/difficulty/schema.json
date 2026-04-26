@@ -17,8 +17,14 @@
       "required": true
     },
     "slug": {
-      "type": "uid",
-      "targetField": "name",
+      "type": "string",
+      "required": true
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "difficulties",
       "required": true
     },
     "level_number": {
@@ -56,6 +62,9 @@
     "attributes": {
       "owner_id": {
         "hidden": true
+      },
+      "organization": {
+        "mainField": "name"
       }
     }
   }

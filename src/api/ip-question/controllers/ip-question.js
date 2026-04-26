@@ -7,6 +7,10 @@ const { GetObjectCommand, S3Client } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { factories } = require('@strapi/strapi');
 const { errors } = require('@strapi/utils');
+const {
+  getLegacyOwnerId,
+  resolvePublicOrganizationFromQuery,
+} = require('../../../utils/cms-organizations');
 
 const { NotFoundError, ValidationError } = errors;
 
@@ -142,8 +146,9 @@ const getS3Client = () => {
   });
 };
 
-const buildQuestionFilters = (query) => {
-  const ownerId = parseRequiredString(query.ownerId, 'ownerId');
+const buildQuestionFilters = async (strapi, query) => {
+  const organization = await resolvePublicOrganizationFromQuery(strapi, query);
+  const ownerId = getLegacyOwnerId(organization);
   const topics = parseMultiStringValues(query.topic ?? query.subTopic ?? query.sub_topic, 'topic');
   const module = parseOptionalString(query.module);
   const level = parseRequiredString(query.level, 'level');
@@ -153,7 +158,9 @@ const buildQuestionFilters = (query) => {
   );
 
   const where = {
-    owner_id: ownerId,
+    organization: {
+      id: organization.id,
+    },
     asset_type: 'question',
     is_active: true,
     publishedAt: {
@@ -167,6 +174,7 @@ const buildQuestionFilters = (query) => {
 
   return {
     where,
+    organization,
     ownerId,
     module,
     topics,
@@ -187,8 +195,10 @@ const buildTaxonomyValueWhere = (value, fields) => {
   };
 };
 
-const buildBaseTaxonomyWhere = (ownerId) => ({
-  owner_id: ownerId,
+const buildBaseTaxonomyWhere = (organizationId) => ({
+  organization: {
+    id: organizationId,
+  },
   is_active: true,
   publishedAt: {
     $notNull: true,
@@ -310,6 +320,7 @@ const mapQuestion = (question) => {
   const mappedModule = mapModule(question.module);
   const mappedLevel = mapLevel(question.level);
   const mappedDifficulty = mapDifficulty(question.difficulty);
+  const ownerId = getLegacyOwnerId(question.organization || { legacy_owner_id: question.owner_id });
 
   return {
     id: question.id,
@@ -339,7 +350,9 @@ const mapQuestion = (question) => {
     difficulty_slug: mappedDifficulty.difficulty_slug,
     difficulty_level: mappedDifficulty.difficulty_level,
     asset_type: question.asset_type,
-    owner_id: question.owner_id,
+    owner_id: ownerId,
+    organization_id: question.organization?.id ?? null,
+    organization_slug: question.organization?.slug ?? null,
     contains_latex: Boolean(question.contains_latex),
     metadata: question.metadata ?? null,
   };
@@ -365,6 +378,7 @@ const createAuditLog = async (strapi, action, ctx, payload) => {
       requesting_user_email: requester.requesting_user_email,
       outlet_id: requester.outlet_id,
       outlet_name: requester.outlet_name,
+      organization: payload.organizationId ?? null,
       owner_id: payload.ownerId ?? null,
       module: payload.module ?? null,
       topic: Array.isArray(payload.topics) ? payload.topics.join(', ') : null,
@@ -390,6 +404,7 @@ const queryQuestions = async (strapi, where) =>
       module: true,
       topics: true,
       difficulty: true,
+      organization: true,
     },
   });
 
@@ -422,7 +437,7 @@ const queryQuestionFilterRelations = async (strapi, filters) => {
     levelWhere
       ? strapi.db.query(LEVEL_UID).findMany({
         where: {
-          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...buildBaseTaxonomyWhere(filters.organization.id),
           ...levelWhere,
         },
       })
@@ -430,7 +445,7 @@ const queryQuestionFilterRelations = async (strapi, filters) => {
     moduleWhere
       ? strapi.db.query(MODULE_UID).findMany({
         where: {
-          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...buildBaseTaxonomyWhere(filters.organization.id),
           ...moduleWhere,
         },
       })
@@ -438,7 +453,7 @@ const queryQuestionFilterRelations = async (strapi, filters) => {
     topicWhere
       ? strapi.db.query(TOPIC_UID).findMany({
         where: {
-          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...buildBaseTaxonomyWhere(filters.organization.id),
           ...topicWhere,
         },
       })
@@ -446,7 +461,7 @@ const queryQuestionFilterRelations = async (strapi, filters) => {
     difficultyWhere
       ? strapi.db.query(DIFFICULTY_UID).findMany({
         where: {
-          ...buildBaseTaxonomyWhere(filters.ownerId),
+          ...buildBaseTaxonomyWhere(filters.organization.id),
           ...difficultyWhere,
         },
       })
@@ -490,24 +505,24 @@ const buildQuestionQueryWhere = (filters, relationIds) => {
   return where;
 };
 
-const queryLevels = async (strapi, ownerId) =>
+const queryLevels = async (strapi, organizationId) =>
   strapi.db.query(LEVEL_UID).findMany({
-    where: buildBaseTaxonomyWhere(ownerId),
+    where: buildBaseTaxonomyWhere(organizationId),
     orderBy: { sort_order: 'asc' },
   });
 
-const queryModules = async (strapi, ownerId) =>
+const queryModules = async (strapi, organizationId) =>
   strapi.db.query(MODULE_UID).findMany({
-    where: buildBaseTaxonomyWhere(ownerId),
+    where: buildBaseTaxonomyWhere(organizationId),
     orderBy: { sort_order: 'asc' },
     populate: {
       level: true,
     },
   });
 
-const queryTopics = async (strapi, ownerId) =>
+const queryTopics = async (strapi, organizationId) =>
   strapi.db.query(TOPIC_UID).findMany({
-    where: buildBaseTaxonomyWhere(ownerId),
+    where: buildBaseTaxonomyWhere(organizationId),
     orderBy: { sort_order: 'asc' },
     populate: {
       module: {
@@ -519,9 +534,9 @@ const queryTopics = async (strapi, ownerId) =>
     },
   });
 
-const queryDifficulties = async (strapi, ownerId) =>
+const queryDifficulties = async (strapi, organizationId) =>
   strapi.db.query(DIFFICULTY_UID).findMany({
-    where: buildBaseTaxonomyWhere(ownerId),
+    where: buildBaseTaxonomyWhere(organizationId),
     orderBy: { level_number: 'asc' },
   });
 
@@ -607,13 +622,14 @@ const getPublishedAsset = async (strapi, assetId) =>
       module: true,
       topics: true,
       difficulty: true,
+      organization: true,
     },
   });
 
 module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
   async generateQuestions(ctx) {
     const count = parseCount(ctx.query.count);
-    const filters = buildQuestionFilters(ctx.query);
+    const filters = await buildQuestionFilters(strapi, ctx.query);
 
     try {
       const relationIds = await queryQuestionFilterRelations(strapi, filters);
@@ -624,6 +640,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
       const selectedQuestions = shuffle(questionPool).slice(0, count);
 
       await createAuditLog(strapi, 'generate_questions', ctx, {
+        organizationId: filters.organization.id,
         ownerId: filters.ownerId,
         module: filters.module,
         topics: filters.topics,
@@ -644,6 +661,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
       };
     } catch (error) {
       await createAuditLog(strapi, 'generate_questions', ctx, {
+        organizationId: filters.organization.id,
         ownerId: filters.ownerId,
         module: filters.module,
         topics: filters.topics,
@@ -662,7 +680,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
   async generateWorksheet(ctx) {
     const count = parseCount(ctx.query.count);
-    const filters = buildQuestionFilters(ctx.query);
+    const filters = await buildQuestionFilters(strapi, ctx.query);
 
     try {
       const relationIds = await queryQuestionFilterRelations(strapi, filters);
@@ -673,6 +691,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
       const selectedQuestions = shuffle(questionPool).slice(0, count);
 
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
+        organizationId: filters.organization.id,
         ownerId: filters.ownerId,
         module: filters.module,
         topics: filters.topics,
@@ -690,6 +709,8 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
           worksheet: {
             title: `${filters.topics.join(', ')} Worksheet`,
             owner_id: filters.ownerId,
+            organization_id: filters.organization.id,
+            organization_slug: filters.organization.slug,
             module: filters.module,
             topic: filters.topics[0] ?? null,
             topics: filters.topics,
@@ -706,6 +727,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
       };
     } catch (error) {
       await createAuditLog(strapi, 'generate_worksheet', ctx, {
+        organizationId: filters.organization.id,
         ownerId: filters.ownerId,
         module: filters.module,
         topics: filters.topics,
@@ -724,7 +746,8 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
 
   async assetUrl(ctx) {
     const rawAssetId = parseRequiredString(ctx.query.assetId, 'assetId');
-    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const organization = await resolvePublicOrganizationFromQuery(strapi, ctx.query);
+    const ownerId = getLegacyOwnerId(organization);
     const assetId = Number.parseInt(rawAssetId, 10);
 
     if (!Number.isInteger(assetId) || assetId < 1) {
@@ -738,7 +761,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
         throw new NotFoundError('Asset not found');
       }
 
-      if (asset.owner_id !== ownerId) {
+      if (asset.organization?.id !== organization.id) {
         throw new NotFoundError('Asset not found');
       }
 
@@ -779,6 +802,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
       await createAuditLog(strapi, 'asset_url', ctx, {
+        organizationId: organization.id,
         ownerId,
         module: mapModule(asset.module).module,
         topics: mapTopics(asset.topics),
@@ -796,7 +820,9 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
           title: asset.title,
           module: mapModule(asset.module).module,
           asset_type: asset.asset_type,
-          owner_id: asset.owner_id,
+          owner_id: ownerId,
+          organization_id: asset.organization?.id ?? null,
+          organization_slug: asset.organization?.slug ?? null,
           object_key: asset.object_key,
           mime_type: asset.mime_type ?? null,
           file_name: asset.file_name ?? null,
@@ -806,6 +832,7 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
       };
     } catch (error) {
       await createAuditLog(strapi, 'asset_url', ctx, {
+        organizationId: organization.id,
         ownerId,
         assetId,
         queryParams: ctx.query,
@@ -818,8 +845,8 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
   },
 
   async listLevels(ctx) {
-    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
-    const levels = dedupeByDocumentOrId(await queryLevels(strapi, ownerId));
+    const organization = await resolvePublicOrganizationFromQuery(strapi, ctx.query);
+    const levels = dedupeByDocumentOrId(await queryLevels(strapi, organization.id));
     ctx.body = {
       data: levels.map(mapTaxonomyLevel),
       meta: {
@@ -829,9 +856,9 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
   },
 
   async listModules(ctx) {
-    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const organization = await resolvePublicOrganizationFromQuery(strapi, ctx.query);
     const level = parseOptionalString(ctx.query.level);
-    const modules = filterModules(await queryModules(strapi, ownerId), level);
+    const modules = filterModules(await queryModules(strapi, organization.id), level);
     ctx.body = {
       data: modules.map(mapTaxonomyModule),
       meta: {
@@ -841,10 +868,10 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
   },
 
   async listTopics(ctx) {
-    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
+    const organization = await resolvePublicOrganizationFromQuery(strapi, ctx.query);
     const module = parseOptionalString(ctx.query.module);
     const level = parseOptionalString(ctx.query.level);
-    const topics = filterTopics(await queryTopics(strapi, ownerId), module, level);
+    const topics = filterTopics(await queryTopics(strapi, organization.id), module, level);
     ctx.body = {
       data: topics.map(mapTaxonomyTopic),
       meta: {
@@ -854,8 +881,8 @@ module.exports = factories.createCoreController(QUESTION_UID, ({ strapi }) => ({
   },
 
   async listDifficulties(ctx) {
-    const ownerId = parseRequiredString(ctx.query.ownerId, 'ownerId');
-    const difficulties = filterDifficulties(await queryDifficulties(strapi, ownerId));
+    const organization = await resolvePublicOrganizationFromQuery(strapi, ctx.query);
+    const difficulties = filterDifficulties(await queryDifficulties(strapi, organization.id));
     ctx.body = {
       data: difficulties.map(mapTaxonomyDifficulty),
       meta: {

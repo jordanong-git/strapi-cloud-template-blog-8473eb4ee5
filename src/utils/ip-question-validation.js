@@ -2,6 +2,7 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
+const { resolveRequestedOrganization } = require('./cms-organizations');
 
 const { ValidationError } = errors;
 
@@ -12,6 +13,8 @@ const QUESTION_UID = 'api::ip-question.ip-question';
 const VALID_QUESTION_TYPES = new Set(['mcq', 'saq', 'laq']);
 const LATEX_PATTERN =
   /(\\(?:frac|sqrt|times|div|pm|pi|theta|le|ge|left|right|cdot|sum|int|alpha|beta|gamma)|\\[\(\)\[\]]|\$\$)/;
+const isOrganizationBackfillActive = () => process.env.CMS_ORGANIZATION_BACKFILL_ACTIVE === '1';
+const shouldSkipOrganizationValidation = () => process.env.CMS_SKIP_ORGANIZATION_VALIDATION === '1';
 
 const normalizeQuestionType = (value) => String(value || '').trim().toLowerCase();
 
@@ -226,6 +229,21 @@ const refsMatch = (left, right) => {
 
 const getLevelDisplayValue = (level) => level?.code || level?.name || level?.slug || 'unknown';
 const getModuleDisplayValue = (moduleRecord) => moduleRecord?.name || moduleRecord?.slug || 'unknown';
+const getRecordOrganizationId = (record) => {
+  if (Number.isInteger(record)) {
+    return record;
+  }
+
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+
+  if (Number.isInteger(record.organization)) {
+    return record.organization;
+  }
+
+  return Number.isInteger(record.organization?.id) ? record.organization.id : null;
+};
 
 const joinDisplayValues = (values) => values.filter(Boolean).join(', ');
 
@@ -238,6 +256,11 @@ const resolveLevelRecord = async (strapi, levelRef) => {
   return strapi.db.query(LEVEL_UID).findOne({
     where: levelWhere,
     select: ['id', 'documentId', 'name', 'code', 'slug'],
+    populate: {
+      organization: {
+        select: ['id'],
+      },
+    },
   });
 };
 
@@ -251,8 +274,16 @@ const resolveModuleRecord = async (strapi, moduleRef) => {
     where: moduleWhere,
     select: ['id', 'documentId', 'name', 'slug'],
     populate: {
+      organization: {
+        select: ['id'],
+      },
       level: {
         select: ['id', 'documentId', 'name', 'code', 'slug'],
+        populate: {
+          organization: {
+            select: ['id'],
+          },
+        },
       },
     },
   });
@@ -261,6 +292,20 @@ const resolveModuleRecord = async (strapi, moduleRef) => {
 const validateModuleTopicConsistency = async (strapi, data) => {
   if (!data || typeof data !== 'object') {
     return;
+  }
+
+  if (shouldSkipOrganizationValidation()) {
+    return;
+  }
+
+  const organization =
+    (await resolveRequestedOrganization(strapi, data, null)) || data.organization || null;
+  const organizationId = getRecordOrganizationId(organization);
+  if (!Number.isInteger(organizationId)) {
+    if (isOrganizationBackfillActive()) {
+      return;
+    }
+    throw new ValidationError('Question bank entries must belong to a valid organization.');
   }
 
   const moduleRefs = normalizeRelationRefs(data.module);
@@ -277,6 +322,14 @@ const validateModuleTopicConsistency = async (strapi, data) => {
   }
 
   const selectedModuleRecords = moduleRecords.filter(Boolean);
+  const invalidModuleOrganization = selectedModuleRecords.find(
+    (moduleRecord) => getRecordOrganizationId(moduleRecord) !== organizationId,
+  );
+  if (invalidModuleOrganization) {
+    throw new ValidationError(
+      `Module "${getModuleDisplayValue(invalidModuleOrganization)}" belongs to a different organization.`,
+    );
+  }
   const selectedModuleRefs = selectedModuleRecords.map((moduleRecord) => normalizeRelationRef(moduleRecord));
 
   const levelRecords = await Promise.all(levelRefs.map((levelRef) => resolveLevelRecord(strapi, levelRef)));
@@ -285,6 +338,14 @@ const validateModuleTopicConsistency = async (strapi, data) => {
   }
 
   const selectedLevelRecords = levelRecords.filter(Boolean);
+  const invalidLevelOrganization = selectedLevelRecords.find(
+    (levelRecord) => getRecordOrganizationId(levelRecord) !== organizationId,
+  );
+  if (invalidLevelOrganization) {
+    throw new ValidationError(
+      `Academic level "${getLevelDisplayValue(invalidLevelOrganization)}" belongs to a different organization.`,
+    );
+  }
   const selectedLevelRefs = selectedLevelRecords.map((levelRecord) => normalizeRelationRef(levelRecord));
   const selectedLevelLabels = selectedLevelRecords.map(getLevelDisplayValue);
 
@@ -332,6 +393,9 @@ const validateModuleTopicConsistency = async (strapi, data) => {
         where: topicWhere,
         select: ['id', 'documentId', 'name'],
         populate: {
+          organization: {
+            select: ['id'],
+          },
           module: {
             select: ['id', 'documentId', 'name'],
           },
@@ -346,6 +410,13 @@ const validateModuleTopicConsistency = async (strapi, data) => {
   const missingTopic = topicRecords.find((topic) => !topic);
   if (missingTopic) {
     throw new ValidationError('One or more selected topics could not be found.');
+  }
+
+  const invalidTopicOrganization = topicRecords.find(
+    (topic) => getRecordOrganizationId(topic) !== organizationId,
+  );
+  if (invalidTopicOrganization) {
+    throw new ValidationError(`Topic "${invalidTopicOrganization.name}" belongs to a different organization.`);
   }
 
   const invalidTopic = topicRecords.find((topic) => {
@@ -428,19 +499,40 @@ const registerQuestionValidationLifecycles = (strapi) => {
           'max_score',
         ],
         populate: {
+          organization: {
+            select: ['id'],
+          },
           module: {
             select: ['id', 'documentId', 'name'],
             populate: {
+              organization: {
+                select: ['id'],
+              },
               level: {
                 select: ['id', 'documentId', 'name', 'code', 'slug'],
+                populate: {
+                  organization: {
+                    select: ['id'],
+                  },
+                },
               },
             },
           },
           topics: {
             select: ['id', 'documentId', 'name'],
+            populate: {
+              organization: {
+                select: ['id'],
+              },
+            },
           },
           level: {
             select: ['id', 'documentId', 'name', 'code', 'slug'],
+            populate: {
+              organization: {
+                select: ['id'],
+              },
+            },
           },
         },
       });

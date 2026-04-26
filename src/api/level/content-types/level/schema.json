@@ -18,12 +18,17 @@
     },
     "code": {
       "type": "string",
-      "required": true,
-      "unique": true
+      "required": true
     },
     "slug": {
-      "type": "uid",
-      "targetField": "code",
+      "type": "string",
+      "required": true
+    },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "levels",
       "required": true
     },
     "description": {
@@ -71,6 +76,9 @@
     "attributes": {
       "owner_id": {
         "hidden": true
+      },
+      "organization": {
+        "mainField": "name"
       }
     }
   }

@@ -5,7 +5,11 @@ const fs = require('fs-extra');
 const path = require('path');
 const mime = require('mime-types');
 const { global, about } = require('../data/data.json');
-const { registerOwnershipLifecycles } = require('./utils/ip-vault-ownership');
+const {
+  backfillLegacyOrganizations,
+  registerOrganizationManagementLifecycles,
+  registerOwnershipLifecycles,
+} = require('./utils/cms-organizations');
 const { registerQuestionValidationLifecycles } = require('./utils/ip-question-validation');
 const { registerTaxonomyLifecycles } = require('./utils/ip-vault-taxonomy');
 
@@ -172,6 +176,12 @@ async function updateIpQuestionContentManagerConfiguration() {
       description: 'Choose the answer format first: MCQ, SAQ, or LAQ.',
       placeholder: 'Select MCQ, SAQ, or LAQ',
     });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'organization', {
+      label: 'Organization',
+      description: 'Organization that owns this question and its taxonomy.',
+      placeholder: 'Select the owning organization',
+      mainField: 'name',
+    });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'title', {
       label: 'Internal Title',
       description: 'Internal label for HQ only. This is not shown to learners.',
@@ -247,6 +257,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     });
 
     nextConfiguration.layouts.list = [
+      'organization',
       'title',
       'question_type',
       'level',
@@ -257,7 +268,7 @@ async function updateIpQuestionContentManagerConfiguration() {
     ];
 
     nextConfiguration.layouts.edit = [
-      [{ name: 'question_type', size: 4 }, { name: 'title', size: 8 }],
+      [{ name: 'organization', size: 4 }, { name: 'question_type', size: 4 }, { name: 'title', size: 4 }],
       [{ name: 'prompt', size: 12 }],
       [
         { name: 'level', size: 4 },
@@ -312,9 +323,20 @@ async function updateModuleContentManagerConfiguration() {
       sortable: true,
     });
 
-    nextConfiguration.layouts.list = ['id', 'name', 'level', 'slug', 'updatedAt'];
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'organization', {
+      label: 'Organization',
+      description: 'Organization that owns this curriculum module.',
+      placeholder: 'Select the owning organization',
+      mainField: 'name',
+    }, {
+      label: 'Organization',
+      searchable: true,
+      sortable: true,
+    });
+
+    nextConfiguration.layouts.list = ['id', 'organization', 'name', 'level', 'slug', 'updatedAt'];
     nextConfiguration.layouts.edit = [
-      [{ name: 'name', size: 6 }, { name: 'level', size: 6 }],
+      [{ name: 'organization', size: 4 }, { name: 'name', size: 4 }, { name: 'level', size: 4 }],
       [{ name: 'description', size: 12 }],
       [{ name: 'is_active', size: 6 }, { name: 'sort_order', size: 6 }],
       [{ name: 'topics', size: 6 }, { name: 'questions', size: 6 }],
@@ -356,6 +378,17 @@ async function updateTopicContentManagerConfiguration() {
       sortable: true,
     });
 
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'organization', {
+      label: 'Organization',
+      description: 'Organization that owns this topic and its parent module.',
+      placeholder: 'Select the owning organization',
+      mainField: 'name',
+    }, {
+      label: 'Organization',
+      searchable: true,
+      sortable: true,
+    });
+
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'level', {
       label: 'Academic Level',
       description: 'Select one or more academic levels for this topic within the chosen module.',
@@ -367,9 +400,9 @@ async function updateTopicContentManagerConfiguration() {
       sortable: true,
     });
 
-    nextConfiguration.layouts.list = ['id', 'name', 'module', 'level', 'updatedAt'];
+    nextConfiguration.layouts.list = ['id', 'organization', 'name', 'module', 'level', 'updatedAt'];
     nextConfiguration.layouts.edit = [
-      [{ name: 'name', size: 6 }, { name: 'slug', size: 6 }],
+      [{ name: 'organization', size: 4 }, { name: 'name', size: 4 }, { name: 'slug', size: 4 }],
       [{ name: 'module', size: 6 }, { name: 'level', size: 6 }],
       [{ name: 'description', size: 6 }],
       [{ name: 'is_active', size: 4 }, { name: 'sort_order', size: 4 }],
@@ -598,8 +631,15 @@ async function main() {
 
 module.exports = async () => {
   registerOwnershipLifecycles(strapi);
+  registerOrganizationManagementLifecycles(strapi);
   registerTaxonomyLifecycles(strapi);
   registerQuestionValidationLifecycles(strapi);
+  process.env.CMS_ORGANIZATION_BACKFILL_ACTIVE = '1';
+  try {
+    await backfillLegacyOrganizations(strapi);
+  } finally {
+    delete process.env.CMS_ORGANIZATION_BACKFILL_ACTIVE;
+  }
   await seedExampleApp();
   await removeSensitiveApiPermissions();
   await updateIpQuestionContentManagerConfiguration();

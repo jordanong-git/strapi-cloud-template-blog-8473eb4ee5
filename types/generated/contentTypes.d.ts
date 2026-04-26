@@ -493,13 +493,18 @@ export interface ApiDifficultyDifficulty extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     questions: Schema.Attribute.Relation<
       'oneToMany',
       'api::ip-question.ip-question'
     >;
-    slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
+    slug: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -583,6 +588,11 @@ export interface ApiIpAssetIpAsset extends Struct.CollectionTypeSchema {
     module: Schema.Attribute.Relation<'manyToOne', 'api::module.module'> &
       Schema.Attribute.Required;
     object_key: Schema.Attribute.String;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     title: Schema.Attribute.String & Schema.Attribute.Required;
@@ -624,6 +634,10 @@ export interface ApiIpAuditLogIpAuditLog extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     module: Schema.Attribute.String;
     notes: Schema.Attribute.Text;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    >;
     outlet_id: Schema.Attribute.String;
     outlet_name: Schema.Attribute.String;
     owner_id: Schema.Attribute.String;
@@ -696,6 +710,11 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     metadata: Schema.Attribute.JSON;
     module: Schema.Attribute.Relation<'manyToMany', 'api::module.module'> &
       Schema.Attribute.Required;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     prompt: Schema.Attribute.Text &
       Schema.Attribute.Required &
@@ -727,9 +746,7 @@ export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
   };
   attributes: {
     assets: Schema.Attribute.Relation<'oneToMany', 'api::ip-asset.ip-asset'>;
-    code: Schema.Attribute.String &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    code: Schema.Attribute.String & Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -740,13 +757,18 @@ export interface ApiLevelLevel extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     modules: Schema.Attribute.Relation<'manyToMany', 'api::module.module'>;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     questions: Schema.Attribute.Relation<
       'manyToMany',
       'api::ip-question.ip-question'
     >;
-    slug: Schema.Attribute.UID<'code'> & Schema.Attribute.Required;
+    slug: Schema.Attribute.String & Schema.Attribute.Required;
     sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
@@ -782,14 +804,118 @@ export interface ApiModuleModule extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     questions: Schema.Attribute.Relation<
       'manyToMany',
       'api::ip-question.ip-question'
     >;
-    slug: Schema.Attribute.UID<'name'>;
+    slug: Schema.Attribute.String;
     sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    topics: Schema.Attribute.Relation<'oneToMany', 'api::topic.topic'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiOrganizationMembershipOrganizationMembership
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'organization_memberships';
+  info: {
+    description: 'Binds Strapi admin users to organizations and grants organization-scoped CMS access.';
+    displayName: 'Organization Membership';
+    pluralName: 'organization-memberships';
+    singularName: 'organization-membership';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    is_active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::organization-membership.organization-membership'
+    > &
+      Schema.Attribute.Private;
+    notes: Schema.Attribute.Text;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    role: Schema.Attribute.Enumeration<['org_admin', 'editor', 'viewer']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'editor'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<'manyToOne', 'admin::user'> &
+      Schema.Attribute.Required;
+  };
+}
+
+export interface ApiOrganizationOrganization
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'organizations';
+  info: {
+    description: 'Tenant boundary for curriculum taxonomy, question banks, and media.';
+    displayName: 'Organization';
+    pluralName: 'organizations';
+    singularName: 'organization';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    assets: Schema.Attribute.Relation<'oneToMany', 'api::ip-asset.ip-asset'>;
+    audit_logs: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::ip-audit-log.ip-audit-log'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
+    difficulties: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::difficulty.difficulty'
+    >;
+    is_active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    legacy_owner_id: Schema.Attribute.String & Schema.Attribute.Required;
+    levels: Schema.Attribute.Relation<'oneToMany', 'api::level.level'>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Private;
+    memberships: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::organization-membership.organization-membership'
+    >;
+    modules: Schema.Attribute.Relation<'oneToMany', 'api::module.module'>;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    questions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::ip-question.ip-question'
+    >;
+    slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
     topics: Schema.Attribute.Relation<'oneToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -823,13 +949,18 @@ export interface ApiTopicTopic extends Struct.CollectionTypeSchema {
     module: Schema.Attribute.Relation<'manyToOne', 'api::module.module'> &
       Schema.Attribute.Required;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    organization: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::organization.organization'
+    > &
+      Schema.Attribute.Required;
     owner_id: Schema.Attribute.String & Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     questions: Schema.Attribute.Relation<
       'manyToMany',
       'api::ip-question.ip-question'
     >;
-    slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
+    slug: Schema.Attribute.String & Schema.Attribute.Required;
     sort_order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1355,6 +1486,8 @@ declare module '@strapi/strapi' {
       'api::ip-question.ip-question': ApiIpQuestionIpQuestion;
       'api::level.level': ApiLevelLevel;
       'api::module.module': ApiModuleModule;
+      'api::organization-membership.organization-membership': ApiOrganizationMembershipOrganizationMembership;
+      'api::organization.organization': ApiOrganizationOrganization;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

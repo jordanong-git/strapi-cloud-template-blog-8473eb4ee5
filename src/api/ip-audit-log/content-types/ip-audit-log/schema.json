@@ -32,6 +32,12 @@
     "outlet_name": {
       "type": "string"
     },
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "audit_logs"
+    },
     "owner_id": {
       "type": "string"
     },

@@ -1,12 +1,15 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
+const { resolveRequestedOrganization } = require('./cms-organizations');
 
 const { ValidationError } = errors;
 
 const LEVEL_UID = 'api::level.level';
 const MODULE_UID = 'api::module.module';
 const TOPIC_UID = 'api::topic.topic';
+const DIFFICULTY_UID = 'api::difficulty.difficulty';
+const isOrganizationBackfillActive = () => process.env.CMS_ORGANIZATION_BACKFILL_ACTIVE === '1';
 
 const slugify = (value) =>
   String(value || '')
@@ -110,6 +113,22 @@ const getRelationRecordsArray = (value) => {
   return [];
 };
 
+const getRecordOrganizationId = (record) => {
+  if (Number.isInteger(record)) {
+    return record;
+  }
+
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+
+  if (Number.isInteger(record.organization)) {
+    return record.organization;
+  }
+
+  return Number.isInteger(record.organization?.id) ? record.organization.id : null;
+};
+
 const getRelationRefKey = (value) => {
   const normalizedRef = normalizeRelationRef(value);
 
@@ -183,8 +202,16 @@ const getExistingModule = async (strapi, where) => {
     where,
     select: ['id', 'documentId', 'name', 'slug'],
     populate: {
+      organization: {
+        select: ['id'],
+      },
       level: {
         select: ['id', 'documentId', 'name', 'code', 'slug'],
+        populate: {
+          organization: {
+            select: ['id'],
+          },
+        },
       },
     },
   });
@@ -199,8 +226,16 @@ const getExistingModuleByDocumentId = async (strapi, documentId) => {
     where: { documentId: documentId.trim() },
     select: ['id', 'documentId', 'name', 'slug', 'publishedAt'],
     populate: {
+      organization: {
+        select: ['id'],
+      },
       level: {
         select: ['id', 'documentId', 'name', 'code', 'slug'],
+        populate: {
+          organization: {
+            select: ['id'],
+          },
+        },
       },
     },
   };
@@ -234,6 +269,11 @@ const resolveLevelRecords = async (strapi, value) => {
       return strapi.db.query(LEVEL_UID).findOne({
         where: levelWhere,
         select: ['id', 'documentId', 'name', 'code', 'slug'],
+        populate: {
+          organization: {
+            select: ['id'],
+          },
+        },
       });
     }),
   );
@@ -294,6 +334,7 @@ const resolveMergedLevelRecords = async (strapi, existingRecords, incomingValue)
 };
 
 const validateModuleData = async (strapi, data = {}, existingModule = null) => {
+  const organization = await resolveRequestedOrganization(strapi, data, null);
   const levelRecords = await resolveMergedLevelRecords(
     strapi,
     getRelationRecordsArray(existingModule?.level),
@@ -304,6 +345,24 @@ const validateModuleData = async (strapi, data = {}, existingModule = null) => {
 
   if (levelRecords.length === 0 || !isNonEmptyString(name)) {
     throw new ValidationError('Module must include at least one academic level and a name. The slug is generated automatically.');
+  }
+
+  const organizationId = organization?.id || getRecordOrganizationId(existingModule);
+  if (!Number.isInteger(organizationId)) {
+    if (isOrganizationBackfillActive()) {
+      return {
+        levelRecords,
+        name,
+      };
+    }
+    throw new ValidationError('Module must belong to a valid organization.');
+  }
+
+  const invalidLevel = levelRecords.find((levelRecord) => getRecordOrganizationId(levelRecord) !== organizationId);
+  if (invalidLevel) {
+    throw new ValidationError(
+      `Academic level "${invalidLevel.code || invalidLevel.name}" belongs to a different organization.`,
+    );
   }
 
   return {
@@ -321,8 +380,16 @@ const resolveTopicModule = async (strapi, data, where) => {
       where: moduleWhere,
       select: ['id', 'documentId', 'name', 'slug'],
       populate: {
+        organization: {
+          select: ['id'],
+        },
         level: {
           select: ['id', 'documentId', 'name', 'code', 'slug'],
+          populate: {
+            organization: {
+              select: ['id'],
+            },
+          },
         },
       },
     });
@@ -338,8 +405,16 @@ const resolveTopicModule = async (strapi, data, where) => {
       module: {
         select: ['id', 'documentId', 'name', 'slug'],
         populate: {
+          organization: {
+            select: ['id'],
+          },
           level: {
             select: ['id', 'documentId', 'name', 'code', 'slug'],
+            populate: {
+              organization: {
+                select: ['id'],
+              },
+            },
           },
         },
       },
@@ -364,6 +439,11 @@ const resolveTopicLevels = async (strapi, data, where) => {
     populate: {
       level: {
         select: ['id', 'documentId', 'name', 'code', 'slug'],
+        populate: {
+          organization: {
+            select: ['id'],
+          },
+        },
       },
     },
   });
@@ -427,6 +507,62 @@ const registerTaxonomyLifecycles = (strapi) => {
   });
 
   strapi.db.lifecycles.subscribe({
+    models: [LEVEL_UID],
+
+    async beforeCreate(event) {
+      const data = event.params?.data || {};
+      if (!isNonEmptyString(data.code)) {
+        throw new ValidationError('Academic level code is required.');
+      }
+      data.slug = slugify(data.code);
+    },
+
+    async beforeUpdate(event) {
+      const data = event.params?.data || {};
+      if (isNonEmptyString(data.code)) {
+        data.slug = slugify(data.code);
+        return;
+      }
+
+      const existingLevel = await strapi.db.query(LEVEL_UID).findOne({
+        where: event.params?.where,
+        select: ['code'],
+      });
+      if (existingLevel?.code) {
+        data.slug = slugify(existingLevel.code);
+      }
+    },
+  });
+
+  strapi.db.lifecycles.subscribe({
+    models: [DIFFICULTY_UID],
+
+    async beforeCreate(event) {
+      const data = event.params?.data || {};
+      if (!isNonEmptyString(data.name)) {
+        throw new ValidationError('Difficulty name is required.');
+      }
+      data.slug = slugify(data.name);
+    },
+
+    async beforeUpdate(event) {
+      const data = event.params?.data || {};
+      if (isNonEmptyString(data.name)) {
+        data.slug = slugify(data.name);
+        return;
+      }
+
+      const existingDifficulty = await strapi.db.query(DIFFICULTY_UID).findOne({
+        where: event.params?.where,
+        select: ['name'],
+      });
+      if (existingDifficulty?.name) {
+        data.slug = slugify(existingDifficulty.name);
+      }
+    },
+  });
+
+  strapi.db.lifecycles.subscribe({
     models: [MODULE_UID],
 
     async beforeCreate(event) {
@@ -450,15 +586,36 @@ const registerTaxonomyLifecycles = (strapi) => {
 
     async beforeCreate(event) {
       const data = event.params?.data || {};
+      const organization = await resolveRequestedOrganization(strapi, data, null);
       const moduleRecord = await resolveTopicModule(strapi, data);
       const levelRecords = await resolveTopicLevels(strapi, data);
+
+      if (!organization?.id) {
+        if (isOrganizationBackfillActive()) {
+          return;
+        }
+        throw new ValidationError('Topic must belong to a valid organization.');
+      }
 
       if (!moduleRecord) {
         throw new ValidationError('Topic must belong to a valid module.');
       }
 
+      if (getRecordOrganizationId(moduleRecord) !== organization.id) {
+        throw new ValidationError('Topic module must belong to the same organization.');
+      }
+
       if (levelRecords.length === 0) {
         throw new ValidationError('Topic must belong to at least one valid academic level.');
+      }
+
+      const invalidLevelOrganization = levelRecords.find(
+        (levelRecord) => getRecordOrganizationId(levelRecord) !== organization.id,
+      );
+      if (invalidLevelOrganization) {
+        throw new ValidationError(
+          `Topic academic level "${invalidLevelOrganization.code || invalidLevelOrganization.name}" belongs to a different organization.`,
+        );
       }
 
       const moduleLevelRefs = normalizeRelationRefs(moduleRecord.level);
@@ -481,16 +638,45 @@ const registerTaxonomyLifecycles = (strapi) => {
 
     async beforeUpdate(event) {
       const data = event.params?.data || {};
+      const existingTopic = await strapi.db.query(TOPIC_UID).findOne({
+        where: event.params?.where,
+        populate: {
+          organization: {
+            select: ['id'],
+          },
+        },
+      });
+      const organization = (await resolveRequestedOrganization(strapi, data, null)) || existingTopic?.organization;
       const moduleRecord = await resolveTopicModule(strapi, data, event.params?.where);
       const levelRecords = await resolveTopicLevels(strapi, data, event.params?.where);
       const topicName = data.name;
+
+      if (!organization?.id) {
+        if (isOrganizationBackfillActive()) {
+          return;
+        }
+        throw new ValidationError('Topic must belong to a valid organization.');
+      }
 
       if (!moduleRecord) {
         throw new ValidationError('Topic must belong to a valid module.');
       }
 
+      if (getRecordOrganizationId(moduleRecord) !== organization.id) {
+        throw new ValidationError('Topic module must belong to the same organization.');
+      }
+
       if (levelRecords.length === 0) {
         throw new ValidationError('Topic must belong to at least one valid academic level.');
+      }
+
+      const invalidLevelOrganization = levelRecords.find(
+        (levelRecord) => getRecordOrganizationId(levelRecord) !== organization.id,
+      );
+      if (invalidLevelOrganization) {
+        throw new ValidationError(
+          `Topic academic level "${invalidLevelOrganization.code || invalidLevelOrganization.name}" belongs to a different organization.`,
+        );
       }
 
       const moduleLevelRefs = normalizeRelationRefs(moduleRecord.level);
@@ -509,11 +695,11 @@ const registerTaxonomyLifecycles = (strapi) => {
       }
 
       if (!topicName) {
-        const existingTopic = await strapi.db.query(TOPIC_UID).findOne({
+        const existingTopicNameRecord = await strapi.db.query(TOPIC_UID).findOne({
           where: event.params?.where,
           select: ['name'],
         });
-        data.slug = buildTopicSlug(moduleRecord, levelRecords, existingTopic?.name);
+        data.slug = buildTopicSlug(moduleRecord, levelRecords, existingTopicNameRecord?.name);
         return;
       }
 

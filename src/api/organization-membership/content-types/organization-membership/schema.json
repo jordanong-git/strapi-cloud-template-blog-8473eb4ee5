@@ -1,0 +1,43 @@
+{
+  "kind": "collectionType",
+  "collectionName": "organization_memberships",
+  "info": {
+    "singularName": "organization-membership",
+    "pluralName": "organization-memberships",
+    "displayName": "Organization Membership",
+    "description": "Binds Strapi admin users to organizations and grants organization-scoped CMS access."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "organization": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::organization.organization",
+      "inversedBy": "memberships",
+      "required": true
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "admin::user",
+      "required": true
+    },
+    "role": {
+      "type": "enumeration",
+      "enum": ["org_admin", "editor", "viewer"],
+      "default": "editor",
+      "required": true
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "notes": {
+      "type": "text"
+    }
+  }
+}
