@@ -116,6 +116,26 @@ const createTextNode = (value) => ({
   value,
 });
 
+const getTrailingTextCharacter = (node) => {
+  if (!node) {
+    return "";
+  }
+
+  if (node.type === "text") {
+    return node.value.slice(-1);
+  }
+
+  if (node.type === "group") {
+    return getTrailingTextCharacter(node.children?.[node.children.length - 1]);
+  }
+
+  if (node.type === "script") {
+    return getTrailingTextCharacter(node.base);
+  }
+
+  return "";
+};
+
 const mergeTextNodes = (nodes) =>
   nodes.reduce((result, node) => {
     if (!node) {
@@ -273,6 +293,20 @@ const parseLatexToNodes = (input) => {
 
     while (index < value.length && (value[index] === "^" || value[index] === "_")) {
       const marker = value[index];
+      const trailingCharacter = getTrailingTextCharacter(node);
+      const nextCharacter = value[index + 1] || "";
+
+      const shouldTreatAsPlainText =
+        !node ||
+        /\s/.test(trailingCharacter) ||
+        !nextCharacter ||
+        /\s/.test(nextCharacter) ||
+        nextCharacter === marker;
+
+      if (shouldTreatAsPlainText) {
+        break;
+      }
+
       index += 1;
       const scriptNode = parseScriptArgument();
 
