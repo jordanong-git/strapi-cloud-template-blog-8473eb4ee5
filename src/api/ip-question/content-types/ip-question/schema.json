@@ -34,6 +34,16 @@
       "customField": "global::math-text",
       "required": true
     },
+    "images": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["images"]
+    },
+    "attachments": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["files"]
+    },
     "module": {
       "type": "relation",
       "relation": "manyToMany",

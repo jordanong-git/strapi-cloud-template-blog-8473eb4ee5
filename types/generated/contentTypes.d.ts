@@ -675,6 +675,7 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     asset_type: Schema.Attribute.Enumeration<['question']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'question'>;
+    attachments: Schema.Attribute.Media<'files', true>;
     choices: Schema.Attribute.JSON &
       Schema.Attribute.CustomField<'global::mcq-choices'>;
     contains_latex: Schema.Attribute.Boolean &
@@ -688,6 +689,7 @@ export interface ApiIpQuestionIpQuestion extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Required;
     explanation: Schema.Attribute.Text;
+    images: Schema.Attribute.Media<'images', true>;
     is_active: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     level: Schema.Attribute.Relation<'manyToMany', 'api::level.level'> &
       Schema.Attribute.Required;

@@ -11,6 +11,32 @@ const MODULE_UID = 'api::module.module';
 const TOPIC_UID = 'api::topic.topic';
 const QUESTION_UID = 'api::ip-question.ip-question';
 const VALID_QUESTION_TYPES = new Set(['mcq', 'saq', 'laq']);
+const QUESTION_CONTENT_FIELDS = new Set([
+  'question_type',
+  'title',
+  'organization',
+  'organization_id',
+  'organizationId',
+  'prompt',
+  'images',
+  'attachments',
+  'module',
+  'topics',
+  'level',
+  'difficulty',
+  'max_score',
+  'choices',
+  'accepted_answers',
+  'sample_answer',
+  'marking_rubric',
+  'explanation',
+  'asset_type',
+  'owner_id',
+  'ownerId',
+  'contains_latex',
+  'metadata',
+  'is_active',
+]);
 const LATEX_PATTERN =
   /(\\(?:frac|sqrt|times|div|pm|pi|theta|le|ge|left|right|cdot|sum|int|alpha|beta|gamma)|\\[\(\)\[\]]|\$\$)/;
 const isOrganizationBackfillActive = () => process.env.CMS_ORGANIZATION_BACKFILL_ACTIVE === '1';
@@ -129,6 +155,19 @@ const mergeExistingWithIncoming = (existingRecord, incomingData) => ({
 });
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isPublishOnlyUpdate = (data) => {
+  if (!isPlainObject(data)) {
+    return false;
+  }
+
+  const keys = Object.keys(data);
+  if (keys.length === 0) {
+    return false;
+  }
+
+  return !keys.some((key) => QUESTION_CONTENT_FIELDS.has(key));
+};
 
 const normalizeRelationRef = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -300,7 +339,9 @@ const validateModuleTopicConsistency = async (strapi, data) => {
 
   const organization =
     (await resolveRequestedOrganization(strapi, data, null)) || data.organization || null;
-  const organizationId = getRecordOrganizationId(organization);
+  const organizationId = Number.isInteger(organization?.id)
+    ? organization.id
+    : getRecordOrganizationId(organization);
   if (!Number.isInteger(organizationId)) {
     if (isOrganizationBackfillActive()) {
       return;
@@ -536,6 +577,19 @@ const registerQuestionValidationLifecycles = (strapi) => {
           },
         },
       });
+
+      if (!existingRecord) {
+        validateQuestionPayload(event.params?.data);
+        return;
+      }
+
+      if (isPublishOnlyUpdate(event.params?.data)) {
+        applyDerivedLatexFlag(existingRecord);
+        applyDerivedLatexFlag(event.params?.data);
+        validateQuestionPayload(existingRecord);
+        await validateModuleTopicConsistency(strapi, existingRecord);
+        return;
+      }
 
       const mergedPayload = mergeExistingWithIncoming(existingRecord || {}, event.params?.data || {});
       applyDerivedLatexFlag(mergedPayload);

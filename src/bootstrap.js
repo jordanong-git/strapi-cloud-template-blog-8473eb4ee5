@@ -192,6 +192,16 @@ async function updateIpQuestionContentManagerConfiguration() {
       description: 'The actual question shown to the learner. Use the math toolbar for fractions and symbols, or type raw LaTeX directly.',
       placeholder: 'Example: What is \\\\( \\\\frac{1}{2} + \\\\frac{1}{4} \\\\)?',
     });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'images', {
+      label: 'Question Images',
+      description: 'Optional diagrams, figures, or supporting images shown with the question. Upload one or more images here.',
+      placeholder: '',
+    });
+    mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'attachments', {
+      label: 'Question Attachments',
+      description: 'Optional files for the question, such as PDFs, worksheets, or reference documents.',
+      placeholder: '',
+    });
     mergeQuestionFieldMetadata(nextConfiguration.metadatas, 'module', {
       label: 'Curriculum Module',
       description:
@@ -270,6 +280,8 @@ async function updateIpQuestionContentManagerConfiguration() {
     nextConfiguration.layouts.edit = [
       [{ name: 'organization', size: 4 }, { name: 'question_type', size: 4 }, { name: 'title', size: 4 }],
       [{ name: 'prompt', size: 12 }],
+      [{ name: 'images', size: 12 }],
+      [{ name: 'attachments', size: 12 }],
       [
         { name: 'level', size: 4 },
         { name: 'module', size: 4 },

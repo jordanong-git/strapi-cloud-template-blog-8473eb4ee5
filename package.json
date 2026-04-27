@@ -10,6 +10,7 @@
     "postinstall": "patch-package",
     "seed:admin-users": "node ./scripts/seed-admin-users.js",
     "seed:example": "node ./scripts/seed.js",
+    "seed:ip-vault-p3-p4-core-essential": "node ./scripts/seed-ip-vault-p3-p4-core-essential.js",
     "start": "strapi start",
     "strapi": "strapi"
   },
@@ -18,6 +19,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1021.0",
     "@strapi/plugin-cloud": "5.34.0",
     "@strapi/plugin-users-permissions": "5.34.0",
+    "@strapi/provider-upload-aws-s3": "^5.34.0",
     "@strapi/strapi": "5.34.0",
     "better-sqlite3": "11.3.0",
     "fs-extra": "^10.0.0",

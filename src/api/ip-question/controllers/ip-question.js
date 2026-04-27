@@ -315,12 +315,46 @@ const mapDifficulty = (difficulty) => {
   };
 };
 
+const mapMedia = (media) => {
+  if (!media || typeof media !== 'object') {
+    return null;
+  }
+
+  return {
+    id: media.id,
+    documentId: media.documentId ?? null,
+    name: media.name ?? null,
+    alternativeText: media.alternativeText ?? null,
+    caption: media.caption ?? null,
+    width: Number.isFinite(media.width) ? media.width : null,
+    height: Number.isFinite(media.height) ? media.height : null,
+    formats: media.formats ?? null,
+    hash: media.hash ?? null,
+    ext: media.ext ?? null,
+    mime: media.mime ?? null,
+    size: Number.isFinite(media.size) ? media.size : null,
+    url: media.url ?? null,
+    previewUrl: media.previewUrl ?? null,
+    provider: media.provider ?? null,
+  };
+};
+
 const mapQuestion = (question) => {
   const topics = mapTopics(question.topics);
   const mappedModule = mapModule(question.module);
   const mappedLevel = mapLevel(question.level);
   const mappedDifficulty = mapDifficulty(question.difficulty);
   const ownerId = getLegacyOwnerId(question.organization || { legacy_owner_id: question.owner_id });
+  const images = Array.isArray(question.images)
+    ? question.images.map(mapMedia).filter(Boolean)
+    : question.images
+      ? [mapMedia(question.images)].filter(Boolean)
+      : [];
+  const attachments = Array.isArray(question.attachments)
+    ? question.attachments.map(mapMedia).filter(Boolean)
+    : question.attachments
+      ? [mapMedia(question.attachments)].filter(Boolean)
+      : [];
 
   return {
     id: question.id,
@@ -334,6 +368,8 @@ const mapQuestion = (question) => {
     marking_rubric: question.marking_rubric ?? null,
     max_score: Number.isInteger(question.max_score) ? question.max_score : 1,
     explanation: question.explanation ?? null,
+    images,
+    attachments,
     module: mappedModule.module,
     module_slug: mappedModule.module_slug,
     modules: mappedModule.modules,
@@ -400,6 +436,8 @@ const queryQuestions = async (strapi, where) =>
     where,
     orderBy: { updatedAt: 'desc' },
     populate: {
+      attachments: true,
+      images: true,
       level: true,
       module: true,
       topics: true,
