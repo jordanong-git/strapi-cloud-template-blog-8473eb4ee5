@@ -17,6 +17,7 @@ const ORG_SCOPED_MODELS = [
 ];
 const SUPER_ADMIN_ROLE_CODE = 'strapi-super-admin';
 const ORGANIZATION_ADMIN_ROLE = 'org_admin';
+const ACTIVE_ORGANIZATION_HEADER = 'x-cms-active-organization';
 const ACCESS_CONTEXT_PROMISE_KEY = '__cmsOrganizationAccessContextPromise';
 const ACCESS_CONTEXT_RESOLUTION_DEPTH_KEY = '__cmsOrganizationAccessContextResolutionDepth';
 const accessContextCache = new Map();
@@ -124,6 +125,11 @@ const mergeWhereWithAnd = (currentWhere, nextWhere) => {
 };
 
 const getRequestAdminUser = (strapi) => strapi.requestContext.get()?.state?.user ?? null;
+const getRequestedActiveOrganizationId = (strapi) => {
+  const headerValue = strapi.requestContext.get()?.request?.header?.[ACTIVE_ORGANIZATION_HEADER];
+  const parsedValue = Number.parseInt(`${headerValue ?? ''}`.trim(), 10);
+  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
+};
 const getRequestState = (strapi) => {
   const state = strapi.requestContext.get()?.state;
   return state && typeof state === 'object' ? state : null;
@@ -163,6 +169,8 @@ const buildEmptyAccessContext = ({ hasRequestUser, user = null, isSuperAdmin }) 
   isSuperAdmin,
   memberships: [],
   organizations: [],
+  activeOrganization: null,
+  activeMembership: null,
   organizationIds: [],
   organizationIdSet: new Set(),
   membershipByOrganizationId: new Map(),
@@ -170,13 +178,68 @@ const buildEmptyAccessContext = ({ hasRequestUser, user = null, isSuperAdmin }) 
   scopedOrganizationRelationWhere:
     hasRequestUser && !isSuperAdmin ? { organization: { id: { $in: [] } } } : null,
 });
-const buildScopedAccessContext = (user, memberships) => {
+const sortOrganizationsByName = (organizations) =>
+  [...organizations].sort((leftOrganization, rightOrganization) => {
+    const leftName = `${leftOrganization?.name || ''}`.trim().toLowerCase();
+    const rightName = `${rightOrganization?.name || ''}`.trim().toLowerCase();
+
+    if (leftName !== rightName) {
+      return leftName.localeCompare(rightName);
+    }
+
+    return (leftOrganization?.id || 0) - (rightOrganization?.id || 0);
+  });
+const sortMembershipsByOrganization = (memberships) =>
+  [...memberships].sort((leftMembership, rightMembership) => {
+    const leftName = `${leftMembership?.organization?.name || ''}`.trim().toLowerCase();
+    const rightName = `${rightMembership?.organization?.name || ''}`.trim().toLowerCase();
+
+    if (leftName !== rightName) {
+      return leftName.localeCompare(rightName);
+    }
+
+    return (leftMembership?.organization?.id || 0) - (rightMembership?.organization?.id || 0);
+  });
+const buildScopedOrganizationWhere = (activeOrganization) => {
+  const scopedOrganizationIds = activeOrganization ? [activeOrganization.id] : [];
+
+  return scopedOrganizationIds.length > 0
+    ? { id: { $in: scopedOrganizationIds } }
+    : { id: { $in: [] } };
+};
+const buildSuperAdminAccessContext = (user, organizations, requestedActiveOrganizationId = null) => {
+  const sortedOrganizations = sortOrganizationsByName(organizations).filter(
+    (organization) => Boolean(organization?.id),
+  );
+  const activeOrganization =
+    (Number.isInteger(requestedActiveOrganizationId) &&
+      sortedOrganizations.find((organization) => organization.id === requestedActiveOrganizationId)) ||
+    sortedOrganizations[0] ||
+    null;
+  const scopedOrganizationWhere = buildScopedOrganizationWhere(activeOrganization);
+
+  return {
+    hasRequestUser: true,
+    user,
+    isSuperAdmin: true,
+    memberships: [],
+    organizations: sortedOrganizations,
+    activeOrganization,
+    activeMembership: null,
+    organizationIds: sortedOrganizations.map((organization) => organization.id),
+    organizationIdSet: new Set(sortedOrganizations.map((organization) => organization.id)),
+    membershipByOrganizationId: new Map(),
+    scopedOrganizationWhere,
+    scopedOrganizationRelationWhere: { organization: scopedOrganizationWhere },
+  };
+};
+const buildScopedAccessContext = (user, memberships, requestedActiveOrganizationId = null) => {
   const organizations = [];
   const organizationIds = [];
   const organizationIdSet = new Set();
   const membershipByOrganizationId = new Map();
 
-  memberships.forEach((membership) => {
+  sortMembershipsByOrganization(memberships).forEach((membership) => {
     const organization = membership.organization;
     if (!organization?.id || organizationIdSet.has(organization.id)) {
       return;
@@ -188,8 +251,15 @@ const buildScopedAccessContext = (user, memberships) => {
     membershipByOrganizationId.set(organization.id, membership);
   });
 
-  const scopedOrganizationWhere =
-    organizationIds.length > 0 ? { id: { $in: organizationIds } } : { id: { $in: [] } };
+  const activeOrganization =
+    (Number.isInteger(requestedActiveOrganizationId) &&
+      organizations.find((organization) => organization.id === requestedActiveOrganizationId)) ||
+    organizations[0] ||
+    null;
+  const activeMembership = activeOrganization
+    ? membershipByOrganizationId.get(activeOrganization.id) || null
+    : null;
+  const scopedOrganizationWhere = buildScopedOrganizationWhere(activeOrganization);
 
   return {
     hasRequestUser: true,
@@ -197,6 +267,8 @@ const buildScopedAccessContext = (user, memberships) => {
     isSuperAdmin: false,
     memberships,
     organizations,
+    activeOrganization,
+    activeMembership,
     organizationIds,
     organizationIdSet,
     membershipByOrganizationId,
@@ -204,33 +276,35 @@ const buildScopedAccessContext = (user, memberships) => {
     scopedOrganizationRelationWhere: { organization: scopedOrganizationWhere },
   };
 };
-const readCachedAccessContext = (userId) => {
-  const entry = accessContextCache.get(userId);
+const buildAccessContextCacheKey = (userId, requestedActiveOrganizationId = null) =>
+  `${userId}:${Number.isInteger(requestedActiveOrganizationId) ? requestedActiveOrganizationId : 'default'}`;
+const readCachedAccessContext = (cacheKey) => {
+  const entry = accessContextCache.get(cacheKey);
   if (!entry) {
     return null;
   }
 
   if (entry.expiresAt < Date.now()) {
-    accessContextCache.delete(userId);
+    accessContextCache.delete(cacheKey);
     return null;
   }
 
   return entry.promise;
 };
-const writeCachedAccessContext = (userId, promise) => {
-  accessContextCache.set(userId, {
+const writeCachedAccessContext = (cacheKey, promise) => {
+  accessContextCache.set(cacheKey, {
     promise,
     expiresAt: Date.now() + getAccessContextCacheTtlMs(),
   });
 };
-const clearCachedAccessContext = (userId, promise = null) => {
-  const entry = accessContextCache.get(userId);
+const clearCachedAccessContext = (cacheKey, promise = null) => {
+  const entry = accessContextCache.get(cacheKey);
   if (!entry) {
     return;
   }
 
   if (!promise || entry.promise === promise) {
-    accessContextCache.delete(userId);
+    accessContextCache.delete(cacheKey);
   }
 };
 
@@ -344,8 +418,8 @@ const resolveRequestedOrganization = async (strapi, data = {}, accessContext = n
   }
 
   if (accessContext?.hasRequestUser) {
-    if (accessContext.organizations.length === 1) {
-      return accessContext.organizations[0];
+    if (accessContext.activeOrganization?.id) {
+      return accessContext.activeOrganization;
     }
 
     return null;
@@ -366,9 +440,14 @@ const getAccessContext = async (strapi) => {
   }
 
   const requestAdminUser = getRequestAdminUser(strapi);
+  const requestedActiveOrganizationId = getRequestedActiveOrganizationId(strapi);
   const cacheableUserId = Number.isInteger(requestAdminUser?.id) ? requestAdminUser.id : null;
-  if (cacheableUserId) {
-    const cachedPromise = readCachedAccessContext(cacheableUserId);
+  const cacheKey =
+    cacheableUserId !== null
+      ? buildAccessContextCacheKey(cacheableUserId, requestedActiveOrganizationId)
+      : null;
+  if (cacheKey) {
+    const cachedPromise = readCachedAccessContext(cacheKey);
     if (cachedPromise) {
       if (requestState) {
         requestState[ACCESS_CONTEXT_PROMISE_KEY] = cachedPromise;
@@ -396,11 +475,16 @@ const getAccessContext = async (strapi) => {
     }
 
     if (isSuperAdminUser(adminUser)) {
-      return buildEmptyAccessContext({
-        hasRequestUser: true,
-        user: adminUser,
-        isSuperAdmin: true,
-      });
+      const organizations = await withAccessContextResolution(strapi, async () =>
+        strapi.db.query(ORGANIZATION_UID).findMany({
+          where: {
+            is_active: true,
+          },
+          select: ['id', 'name', 'slug', 'legacy_owner_id', 'is_active'],
+        })
+      );
+
+      return buildSuperAdminAccessContext(adminUser, organizations, requestedActiveOrganizationId);
     }
 
     const memberships = await withAccessContextResolution(strapi, async () =>
@@ -423,14 +507,14 @@ const getAccessContext = async (strapi) => {
       })
     );
 
-    return buildScopedAccessContext(adminUser, memberships);
+    return buildScopedAccessContext(adminUser, memberships, requestedActiveOrganizationId);
   })();
 
   if (requestState) {
     requestState[ACCESS_CONTEXT_PROMISE_KEY] = accessContextPromise;
   }
-  if (cacheableUserId) {
-    writeCachedAccessContext(cacheableUserId, accessContextPromise);
+  if (cacheKey) {
+    writeCachedAccessContext(cacheKey, accessContextPromise);
   }
 
   try {
@@ -439,8 +523,8 @@ const getAccessContext = async (strapi) => {
     if (requestState?.[ACCESS_CONTEXT_PROMISE_KEY] === accessContextPromise) {
       delete requestState[ACCESS_CONTEXT_PROMISE_KEY];
     }
-    if (cacheableUserId) {
-      clearCachedAccessContext(cacheableUserId, accessContextPromise);
+    if (cacheKey) {
+      clearCachedAccessContext(cacheKey, accessContextPromise);
     }
     throw error;
   }
@@ -467,7 +551,10 @@ const assertOrganizationAccess = (accessContext, organizationId, { requireAdmin 
 
 const applyOrganizationScopeToWhere = async (strapi, event, accessContext = null) => {
   const resolvedAccessContext = accessContext || (await getAccessContext(strapi));
-  if (!resolvedAccessContext.hasRequestUser || resolvedAccessContext.isSuperAdmin) {
+  if (
+    !resolvedAccessContext.hasRequestUser ||
+    !resolvedAccessContext.scopedOrganizationRelationWhere
+  ) {
     return resolvedAccessContext;
   }
 
@@ -592,7 +679,7 @@ const registerOrganizationManagementLifecycles = (strapi) => {
         return;
       }
       const accessContext = await getAccessContext(strapi);
-      if (!accessContext.hasRequestUser || accessContext.isSuperAdmin) {
+      if (!accessContext.hasRequestUser || !accessContext.scopedOrganizationWhere) {
         return;
       }
       event.params = event.params || {};
@@ -604,7 +691,7 @@ const registerOrganizationManagementLifecycles = (strapi) => {
         return;
       }
       const accessContext = await getAccessContext(strapi);
-      if (!accessContext.hasRequestUser || accessContext.isSuperAdmin) {
+      if (!accessContext.hasRequestUser || !accessContext.scopedOrganizationWhere) {
         return;
       }
       event.params = event.params || {};
@@ -657,7 +744,7 @@ const registerOrganizationManagementLifecycles = (strapi) => {
         return;
       }
       const accessContext = await getAccessContext(strapi);
-      if (!accessContext.hasRequestUser || accessContext.isSuperAdmin) {
+      if (!accessContext.hasRequestUser || !accessContext.scopedOrganizationRelationWhere) {
         return;
       }
       event.params = event.params || {};
@@ -672,7 +759,7 @@ const registerOrganizationManagementLifecycles = (strapi) => {
         return;
       }
       const accessContext = await getAccessContext(strapi);
-      if (!accessContext.hasRequestUser || accessContext.isSuperAdmin) {
+      if (!accessContext.hasRequestUser || !accessContext.scopedOrganizationRelationWhere) {
         return;
       }
       event.params = event.params || {};
@@ -920,6 +1007,7 @@ const resolvePublicOrganizationFromQuery = async (strapi, query = {}) => {
 };
 
 module.exports = {
+  ACTIVE_ORGANIZATION_HEADER,
   ORGANIZATION_ADMIN_ROLE,
   ORGANIZATION_UID,
   MEMBERSHIP_UID,

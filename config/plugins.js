@@ -44,6 +44,10 @@ module.exports = ({ env }) => {
   }
 
   return {
+    'organization-access': {
+      enabled: true,
+      resolve: './src/plugins/organization-access',
+    },
     upload: {
       config: uploadConfig,
     },

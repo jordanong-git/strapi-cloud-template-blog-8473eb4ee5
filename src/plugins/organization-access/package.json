@@ -1,0 +1,10 @@
+{
+  "name": "organization-access",
+  "version": "0.0.1",
+  "private": true,
+  "strapi": {
+    "name": "organization-access",
+    "displayName": "Organization Access",
+    "kind": "plugin"
+  }
+}

@@ -1,12 +1,16 @@
 // @ts-check
 
-import { Earth } from "@strapi/icons";
+import { Briefcase, Earth } from "@strapi/icons";
 
 import { createReturnToListAfterPublishAction } from "./components/ReturnToListAfterPublishAction";
 
 const MCQ_CHOICES_CUSTOM_FIELD_NAME = "mcq-choices";
 const MATH_TEXT_CUSTOM_FIELD_NAME = "math-text";
 const LMS_SHORTCUT_PATH = "lms-shortcut";
+const ORGANIZATION_ACCESS_PATH = "organization-access";
+const ACTIVE_ORGANIZATION_STORAGE_KEY = "cms-active-organization";
+const ACTIVE_ORGANIZATION_HEADER = "x-cms-active-organization";
+const ACTIVE_ORGANIZATION_FETCH_PATCH_FLAG = "__cmsActiveOrganizationFetchPatched";
 
 /**
  * @typedef {import("@strapi/content-manager/strapi-admin").DocumentActionComponent} DocumentActionComponent
@@ -33,6 +37,83 @@ const isInvalidSort = (sortValue) =>
   sortValue === "undefined:undefined" ||
   sortValue.startsWith("undefined:") ||
   sortValue.endsWith(":undefined");
+
+/** @returns {number | null} */
+const getStoredActiveOrganizationId = () => {
+  const storedValue = window.localStorage.getItem(ACTIVE_ORGANIZATION_STORAGE_KEY);
+  const parsedValue = Number.parseInt(`${storedValue ?? ""}`.trim(), 10);
+  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
+};
+
+/**
+ * @param {string} pathname
+ * @returns {boolean}
+ */
+const isAdminAuthPath = (pathname) =>
+  /^\/admin\/(login|logout|access-token)\b/.test(pathname);
+
+/**
+ * @param {RequestInfo | URL} input
+ * @param {string} backendUrl
+ * @returns {boolean}
+ */
+const shouldAttachActiveOrganizationHeader = (input, backendUrl) => {
+  try {
+    const targetUrl =
+      input instanceof Request ? new URL(input.url) : new URL(`${input}`, backendUrl);
+    const backendOrigin = new URL(backendUrl).origin;
+
+    return (
+      targetUrl.origin === backendOrigin && !isAdminAuthPath(targetUrl.pathname)
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** @returns {void} */
+const installActiveOrganizationFetchInterceptor = () => {
+  if (
+    typeof window === "undefined" ||
+    window[ACTIVE_ORGANIZATION_FETCH_PATCH_FLAG]
+  ) {
+    return;
+  }
+
+  const originalFetch = window.fetch.bind(window);
+  window[ACTIVE_ORGANIZATION_FETCH_PATCH_FLAG] = true;
+
+  window.fetch = (input, init) => {
+    const backendUrl = window.strapi?.backendURL;
+    const activeOrganizationId = getStoredActiveOrganizationId();
+
+    if (
+      !backendUrl ||
+      !activeOrganizationId ||
+      !shouldAttachActiveOrganizationHeader(input, backendUrl)
+    ) {
+      return originalFetch(input, init);
+    }
+
+    const requestHeaders = new Headers(
+      init?.headers || (input instanceof Request ? input.headers : undefined)
+    );
+
+    requestHeaders.set(
+      ACTIVE_ORGANIZATION_HEADER,
+      `${activeOrganizationId}`
+    );
+
+    if (input instanceof Request && !init) {
+      return originalFetch(new Request(input, { headers: requestHeaders }));
+    }
+
+    return originalFetch(input, {
+      ...init,
+      headers: requestHeaders,
+    });
+  };
+};
 
 /** @returns {void} */
 const sanitizeInvalidAdminSort = () => {
@@ -61,6 +142,7 @@ const sanitizeInvalidAdminSort = () => {
  * @returns {void}
  */
 const bootstrap = (app) => {
+  installActiveOrganizationFetchInterceptor();
   sanitizeInvalidAdminSort();
 
   const addDocumentAction = app.getPlugin("content-manager").apis?.addDocumentAction;
@@ -123,6 +205,16 @@ const register = (app) => {
       defaultMessage: "LMS",
     },
     Component: () => import("./pages/LmsShortcutPage.jsx"),
+  });
+
+  app.addMenuLink?.({
+    to: ORGANIZATION_ACCESS_PATH,
+    icon: Briefcase,
+    intlLabel: {
+      id: "ip-vault.organization-access.menu-label",
+      defaultMessage: "Organizations",
+    },
+    Component: () => import("./pages/OrganizationAccessPage.jsx"),
   });
 };
 
