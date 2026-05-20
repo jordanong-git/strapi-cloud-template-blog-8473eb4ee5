@@ -2,6 +2,7 @@ module.exports = ({ env }) => {
   const maxUploadSizeBytes = env.int('R2_MAX_UPLOAD_SIZE_BYTES', 100 * 1024 * 1024);
   const publicBaseUrl = env('R2_PUBLIC_URL', '').trim().replace(/\/+$/g, '');
   const rootPath = env('R2_ROOT_PATH', '').trim().replace(/^\/+|\/+$/g, '');
+  const uploadAcl = env('R2_ACL', 'private').trim().toLowerCase() === 'public-read' ? 'public-read' : 'private';
   const hasR2Config =
     Boolean(env('R2_ACCESS_KEY_ID')) &&
     Boolean(env('R2_SECRET_ACCESS_KEY')) &&
@@ -22,7 +23,7 @@ module.exports = ({ env }) => {
   if (hasR2Config) {
     uploadConfig.provider = 'aws-s3';
     uploadConfig.providerOptions = {
-      ...(publicBaseUrl ? { baseUrl: publicBaseUrl } : {}),
+      ...(uploadAcl !== 'private' && publicBaseUrl ? { baseUrl: publicBaseUrl } : {}),
       ...(rootPath ? { rootPath } : {}),
       s3Options: {
         credentials: {
@@ -33,6 +34,7 @@ module.exports = ({ env }) => {
         endpoint: env('R2_ENDPOINT_URL'),
         forcePathStyle: true,
         params: {
+          ACL: uploadAcl,
           Bucket: env('R2_BUCKET_NAME'),
           signedUrlExpires: env.int('R2_SIGNED_DOWNLOAD_EXPIRY_SECONDS', 900),
         },
