@@ -11,12 +11,13 @@
     "seed:admin-users": "node ./scripts/seed-admin-users.js",
     "seed:example": "node ./scripts/seed.js",
     "seed:ip-vault-p3-p4-core-essential": "node ./scripts/seed-ip-vault-p3-p4-core-essential.js",
+    "seed:superadmin-password": "node ./scripts/reset-super-admin-password.js",
     "start": "strapi start",
     "strapi": "strapi"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1021.0",
-    "@aws-sdk/s3-request-presigner": "^3.1021.0",
+    "@aws-sdk/client-s3": "3.600.0",
+    "@aws-sdk/s3-request-presigner": "3.433.0",
     "@strapi/plugin-cloud": "5.34.0",
     "@strapi/plugin-users-permissions": "5.34.0",
     "@strapi/provider-upload-aws-s3": "^5.34.0",
